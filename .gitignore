@@ -4,21 +4,41 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-
-# Databases
-*.db
-instance/
-
-# Logs
-*.log
-server.log
-
-# Environment
+.Python
+env/
+venv/
+.venv/
+.ENV
+.ENV.local
 .env
 .env.local
 .env.*
+*.env.*
 
-# Dependencies
-venv/
-.venv/
+# Build and distribution artifacts
+build/
+dist/
+*.egg-info/
+
+# Logs
+*.log
+
+# Coverage reports
+.coverage
+htmlcov/
+.coverage.*
+
+# Testing
+.pytest_cache/
+.mypy_cache/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
 ```

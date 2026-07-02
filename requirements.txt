@@ -1,4 +1,32 @@
+# Core dependencies
 Flask==3.0.0
-SQLAlchemy==2.0.23
-Alembic==1.13.0
 Werkzeug==3.0.1
+
+# Database
+SQLAlchemy==2.0.23
+Flask-SQLAlchemy==3.1.1
+alembic==1.13.0
+
+# Forms & CSRF
+Flask-WTF==1.2.1
+WTForms==3.1.1
+
+# File handling
+chardet==5.2.0
+striprtf==0.0.26
+odfpy==1.4.1
+beautifulsoup4==4.12.2
+markdown==3.5.1
+
+# Export
+reportlab==4.0.7
+ebooklib==0.18
+python-docx==1.1.0
+pypdf==3.17.4
+
+# HTTP (for optional AI)
+httpx==0.25.2
+
+# Testing
+pytest==7.4.3
+pytest-cov==4.1.0

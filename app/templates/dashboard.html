@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+
+{% block page_title %}Dashboard - Hikaye Kokpiti{% endblock %}
+
+{% block content %}
+<div x-data="dashboardData()" x-init="loadStats()" class="space-y-6">
+    <!-- Stats Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <!-- Total Chapters -->
+        <div class="glass rounded-xl p-6 card-hover border border-dark-700">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-gray-400 text-sm mb-1">Toplam Bölüm</p>
+                    <p class="text-3xl font-bold" x-text="stats.total_chapters || 0">0</p>
+                </div>
+                <div class="w-12 h-12 rounded-full gradient-primary flex items-center justify-center">
+                    <i class="mdi mdi-file-document-outline text-2xl"></i>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Total Characters -->
+        <div class="glass rounded-xl p-6 card-hover border border-dark-700">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-gray-400 text-sm mb-1">Karakterler</p>
+                    <p class="text-3xl font-bold" x-text="stats.total_characters || 0">0</p>
+                </div>
+                <div class="w-12 h-12 rounded-full gradient-accent flex items-center justify-center">
+                    <i class="mdi mdi-account-group text-2xl"></i>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Total Words -->
+        <div class="glass rounded-xl p-6 card-hover border border-dark-700">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-gray-400 text-sm mb-1">Toplam Kelime</p>
+                    <p class="text-3xl font-bold" x-text="formatNumber(stats.total_words || 0)">0</p>
+                </div>
+                <div class="w-12 h-12 rounded-full bg-green-600 flex items-center justify-center">
+                    <i class="mdi mdi-counter text-2xl"></i>
+                </div>
+            </div>
+        </div>
+        
+        <!-- World Entries -->
+        <div class="glass rounded-xl p-6 card-hover border border-dark-700">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-gray-400 text-sm mb-1">Dünya Öğeleri</p>
+                    <p class="text-3xl font-bold" x-text="stats.total_world_entries || 0">0</p>
+                </div>
+                <div class="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center">
+                    <i class="mdi mdi-earth text-2xl"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Progress & Goals -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Story Health Bar -->
+        <div class="glass rounded-xl p-6 border border-dark-700">
+            <h3 class="text-lg font-semibold mb-4 flex items-center">
+                <i class="mdi mdi-progress-bar mr-2 text-primary"></i>
+                Hikaye İlerlemesi
+            </h3>
+            <div class="mb-2 flex justify-between text-sm">
+                <span class="text-gray-400">Hedef: <span x-text="formatNumber(stats.total_goal || 80000)"></span> kelime</span>
+                <span class="text-primary"><span x-text="Math.round((stats.total_words / (stats.total_goal || 80000)) * 100) || 0"></span>%</span>
+            </div>
+            <div class="w-full bg-dark-700 rounded-full h-4 overflow-hidden">
+                <div class="gradient-primary h-full transition-all duration-500" 
+                     :style="'width: ' + Math.min(100, (stats.total_words / (stats.total_goal || 80000)) * 100) + '%'"></div>
+            </div>
+        </div>
+        
+        <!-- Daily Goal Ring -->
+        <div class="glass rounded-xl p-6 border border-dark-700">
+            <h3 class="text-lg font-semibold mb-4 flex items-center">
+                <i class="mdi mdi-calendar-check mr-2 text-accent"></i>
+                Günlük Hedef
+            </h3>
+            <div class="flex items-center justify-center">
+                <div class="relative w-32 h-32">
+                    <svg class="w-full h-full transform -rotate-90">
+                        <circle cx="64" cy="64" r="56" stroke="#334155" stroke-width="12" fill="none"/>
+                        <circle cx="64" cy="64" r="56" stroke="#ec4899" stroke-width="12" fill="none"
+                                stroke-dasharray="351.86" 
+                                :stroke-dashoffset="351.86 * (1 - (wordsToday / (stats.daily_goal || 500)))"
+                                class="transition-all duration-500"/>
+                    </svg>
+                    <div class="absolute inset-0 flex items-center justify-center flex-col">
+                        <span class="text-2xl font-bold" x-text="wordsToday || 0">0</span>
+                        <span class="text-xs text-gray-400">/ <span x-text="stats.daily_goal || 500"></span></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent Activity -->
+    <div class="glass rounded-xl p-6 border border-dark-700">
+        <h3 class="text-lg font-semibold mb-4 flex items-center">
+            <i class="mdi mdi-history mr-2 text-secondary"></i>
+            Son Aktiviteler
+        </h3>
+        <div class="space-y-3">
+            <template x-if="stats.recent_activity && stats.recent_activity.length > 0">
+                <template x-for="activity in stats.recent_activity" :key="activity.id">
+                    <div class="flex items-center justify-between p-3 bg-dark-800/50 rounded-lg hover:bg-dark-700/50 transition-colors">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-8 h-8 rounded-full flex items-center justify-center"
+                                 :class="{
+                                     'bg-green-600/20 text-green-400': activity.action === 'created',
+                                     'bg-blue-600/20 text-blue-400': activity.action === 'updated',
+                                     'bg-red-600/20 text-red-400': activity.action === 'deleted'
+                                 }">
+                                <i class="mdi" :class="{
+                                    'mdi-plus': activity.action === 'created',
+                                    'mdi-pencil': activity.action === 'updated',
+                                    'mdi-trash-can': activity.action === 'deleted'
+                                }"></i>
+                            </div>
+                            <div>
+                                <p class="font-medium" x-text="activity.entity_title || 'Bilinmeyen'"></p>
+                                <p class="text-xs text-gray-400" x-text="formatActivityType(activity.entity_type) + ' • ' + formatTimeAgo(activity.timestamp)"></p>
+                            </div>
+                        </div>
+                        <span class="text-xs px-2 py-1 rounded bg-dark-700" x-text="activity.action"></span>
+                    </div>
+                </template>
+            </template>
+            <template x-else>
+                <p class="text-gray-400 text-center py-8">Henüz aktivite yok. İlk bölümünüzü oluşturun!</p>
+            </template>
+        </div>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <a href="/chapters" class="glass rounded-xl p-6 border border-dark-700 card-hover text-center group">
+            <div class="w-12 h-12 mx-auto mb-3 rounded-full gradient-primary flex items-center justify-center group-hover:scale-110 transition-transform">
+                <i class="mdi mdi-file-plus text-2xl"></i>
+            </div>
+            <p class="font-medium">Yeni Bölüm</p>
+        </a>
+        
+        <a href="/characters" class="glass rounded-xl p-6 border border-dark-700 card-hover text-center group">
+            <div class="w-12 h-12 mx-auto mb-3 rounded-full gradient-accent flex items-center justify-center group-hover:scale-110 transition-transform">
+                <i class="mdi mdi-account-plus text-2xl"></i>
+            </div>
+            <p class="font-medium">Yeni Karakter</p>
+        </a>
+        
+        <a href="/kanban" class="glass rounded-xl p-6 border border-dark-700 card-hover text-center group">
+            <div class="w-12 h-12 mx-auto mb-3 rounded-full bg-green-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <i class="mdi mdi-kanban text-2xl"></i>
+            </div>
+            <p class="font-medium">Planlama</p>
+        </a>
+        
+        <a href="/world" class="glass rounded-xl p-6 border border-dark-700 card-hover text-center group">
+            <div class="w-12 h-12 mx-auto mb-3 rounded-full bg-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <i class="mdi mdi-map-plus text-2xl"></i>
+            </div>
+            <p class="font-medium">Dünya Ekle</p>
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function dashboardData() {
+    return {
+        stats: {},
+        wordsToday: 0,
+        
+        async loadStats() {
+            try {
+                const response = await fetch('/api/stats');
+                this.stats = await response.json();
+                
+                // Simulate today's words (in real app, calculate from activity_log)
+                this.wordsToday = Math.floor(Math.random() * 500);
+            } catch (error) {
+                console.error('Failed to load stats:', error);
+            }
+        },
+        
+        formatNumber(num) {
+            return num.toLocaleString('tr-TR');
+        },
+        
+        formatActivityType(type) {
+            const types = {
+                'chapter': 'Bölüm',
+                'character': 'Karakter',
+                'world_entry': 'Dünya',
+                'plan': 'Plan'
+            };
+            return types[type] || type;
+        },
+        
+        formatTimeAgo(timestamp) {
+            if (!timestamp) return '';
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diff = Math.floor((now - date) / 1000);
+            
+            if (diff < 60) return 'az önce';
+            if (diff < 3600) return Math.floor(diff / 60) + ' dk önce';
+            if (diff < 86400) return Math.floor(diff / 3600) + ' sa önce';
+            return Math.floor(diff / 86400) + ' gün önce';
+        }
+    }
+}
+</script>
+{% endblock %}

@@ -1,43 +1,88 @@
+"""Main routes for Absolute Story Manager."""
 from flask import Blueprint, render_template
 
 main_bp = Blueprint('main', __name__)
 
+
 @main_bp.route('/')
 def index():
-    return render_template('index.html')
+    """Redirect to dashboard."""
+    return render_template('dashboard.html')
+
 
 @main_bp.route('/dashboard')
 def dashboard():
+    """Dashboard page - story cockpit."""
     return render_template('dashboard.html')
 
-@main_bp.route('/stories')
-def stories():
-    return render_template('stories.html')
 
-@main_bp.route('/story/<int:story_id>')
-def story_detail(story_id):
-    return render_template('story_detail.html', story_id=story_id)
+@main_bp.route('/chapters')
+def chapters():
+    """Chapter list and management."""
+    return render_template('chapters/list.html')
+
+
+@main_bp.route('/chapters/<chapter_id>')
+def chapter_detail(chapter_id):
+    """Chapter detail view."""
+    return render_template('chapters/detail.html', chapter_id=chapter_id)
+
 
 @main_bp.route('/characters')
 def characters():
-    return render_template('characters.html')
+    """Character list and management."""
+    return render_template('characters/list.html')
+
+
+@main_bp.route('/characters/<character_id>')
+def character_detail(character_id):
+    """Character detail view."""
+    return render_template('characters/detail.html', character_id=character_id)
+
 
 @main_bp.route('/kanban')
 def kanban():
-    return render_template('kanban.html')
+    """Kanban board for story planning."""
+    return render_template('plans/kanban.html')
+
 
 @main_bp.route('/timeline')
 def timeline():
-    return render_template('timeline.html')
+    """Timeline view for story events."""
+    return render_template('plans/timeline.html')
 
-@main_bp.route('/worldbuilding')
-def worldbuilding():
-    return render_template('worldbuilding.html')
+
+@main_bp.route('/outline')
+def outline():
+    """Nested outline view."""
+    return render_template('plans/outline.html')
+
+
+@main_bp.route('/world')
+def world():
+    """World building library."""
+    return render_template('world/index.html')
+
+
+@main_bp.route('/world/<entry_id>')
+def world_entry(entry_id):
+    """World entry detail."""
+    return render_template('world/detail.html', entry_id=entry_id)
+
 
 @main_bp.route('/export')
 def export():
+    """Export page."""
     return render_template('export.html')
+
+
+@main_bp.route('/search')
+def search():
+    """Full-text search page."""
+    return render_template('search.html')
+
 
 @main_bp.route('/settings')
 def settings():
+    """Settings page."""
     return render_template('settings.html')
