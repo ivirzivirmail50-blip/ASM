@@ -5,8 +5,12 @@ SQLite with WAL mode, busy_timeout, and scoped sessions.
 import os
 import threading
 from sqlalchemy import create_engine, text, event
-from sqlalchemy.orm import scoped_session, sessionmaker
+from sqlalchemy.orm import scoped_session, sessionmaker, declarative_base
 from sqlalchemy.pool import StaticPool
+from flask_sqlalchemy import SQLAlchemy
+
+# Flask-SQLAlchemy instance (initialized in create_app)
+db = SQLAlchemy()
 
 # Thread lock for write operations
 _write_lock = threading.Lock()

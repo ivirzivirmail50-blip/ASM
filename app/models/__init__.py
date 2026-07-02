@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from sqlalchemy import Text, Integer, Float, Boolean, ForeignKey
 from sqlalchemy.orm import relationship, Mapped, mapped_column
-from app import db
+from app.core.db import db
 
 
 def generate_uuid() -> str:
@@ -338,7 +338,7 @@ class WorldEntry(db.Model):
     description: Mapped[str | None] = mapped_column(Text, default="")
     content: Mapped[str | None] = mapped_column(Text, default="")
     notes: Mapped[str | None] = mapped_column(Text, default="")
-    metadata: Mapped[str | None] = mapped_column(Text, default="{}")  # JSON object
+    entry_metadata: Mapped[str | None] = mapped_column(Text, default="{}")  # JSON object (renamed from 'metadata' to avoid reserved word conflict)
     parent_id: Mapped[str | None] = mapped_column(ForeignKey('world_entries.id'), nullable=True)
     map_pin_x: Mapped[float | None] = mapped_column(Float, nullable=True)
     map_pin_y: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -363,7 +363,7 @@ class WorldEntry(db.Model):
             'description': self.description,
             'content': self.content,
             'notes': self.notes,
-            'metadata': self.metadata,
+            'metadata': self.entry_metadata,
             'parent_id': self.parent_id,
             'map_pin_x': self.map_pin_x,
             'map_pin_y': self.map_pin_y,

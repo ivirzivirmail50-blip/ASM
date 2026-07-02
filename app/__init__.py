@@ -4,13 +4,13 @@ Local-first creative writing tool with optional AI assistance.
 """
 import os
 import logging
+import json
 from flask import Flask, render_template, jsonify, request, g
 from flask_wtf.csrf import CSRFProtect
 from sqlalchemy import text
 
-from app.core.db import init_db, enable_fts5, get_write_lock, close_session
+from app.core.db import db, init_db, enable_fts5, get_write_lock, close_session, db_session
 from app.core.errors import AppError, NotFoundError, ValidationError
-from app.models import Project, Settings, ActivityLog
 
 
 def create_app(config=None):
@@ -26,6 +26,9 @@ def create_app(config=None):
     app.config['DATA_DIR'] = os.path.join(app.instance_path, 'data')
     app.config['DB_PATH'] = os.path.join(app.config['DATA_DIR'], 'asm.db')
     
+    # Set database URI after DB_PATH is defined
+    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{app.config["DB_PATH"]}'
+    
     try:
         os.makedirs(app.instance_path)
         os.makedirs(app.config['DATA_DIR'])
@@ -38,7 +41,6 @@ def create_app(config=None):
         pass
     
     # Initialize database
-    from app import db
     db.init_app(app)
     init_db(app.config['DB_PATH'])
     
@@ -48,9 +50,14 @@ def create_app(config=None):
     
     # Register blueprints
     from app.routes.main import main_bp
-    from app.routes.api import api_bp
     app.register_blueprint(main_bp)
-    app.register_blueprint(api_bp, url_prefix='/api')
+    
+    # API blueprint (create if not exists)
+    try:
+        from app.routes.api import api_bp
+        app.register_blueprint(api_bp, url_prefix='/api')
+    except ImportError:
+        pass  # API routes not yet implemented
     
     # Error handlers
     @app.errorhandler(404)
@@ -69,7 +76,6 @@ def create_app(config=None):
     # Database session per request
     @app.before_request
     def before_request():
-        from app.core.db import db_session
         g.db_session = db_session
     
     @app.teardown_request
@@ -81,6 +87,7 @@ def create_app(config=None):
         db.create_all()
         
         # Create default project if not exists
+        from app.models import Project, Settings
         default_project = Project.query.get('default')
         if not default_project:
             default_project = Project(id='default', name='My Story')
@@ -122,7 +129,6 @@ def create_app(config=None):
             }
             
             for key, value in default_settings.items():
-                import json
                 setting = Settings(key=key, value=json.dumps(value))
                 db.session.add(setting)
             

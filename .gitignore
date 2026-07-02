@@ -1,4 +1,7 @@
 ```
+# Database files
+instance/data/*.db
+
 # Python
 __pycache__/
 *.pyc
@@ -9,36 +12,12 @@ env/
 venv/
 .venv/
 .ENV
-.ENV.local
-.env
-.env.local
-.env.*
-*.env.*
-
-# Build and distribution artifacts
-build/
-dist/
-*.egg-info/
-
-# Logs
+.ENV.*
+.venv.bak/
+.ENV.bak/
 *.log
-
-# Coverage reports
-.coverage
-htmlcov/
-.coverage.*
-
-# Testing
-.pytest_cache/
-.mypy_cache/
-
-# Editors
-.vscode/
-.idea/
+*.tmp
 *.swp
-*.swo
-
-# OS
 .DS_Store
 Thumbs.db
 ```
