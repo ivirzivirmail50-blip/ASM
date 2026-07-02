@@ -1,0 +1,24 @@
+```
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Databases
+*.db
+instance/
+
+# Logs
+*.log
+server.log
+
+# Environment
+.env
+.env.local
+.env.*
+
+# Dependencies
+venv/
+.venv/
+```
