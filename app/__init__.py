@@ -88,7 +88,11 @@ def create_app(config=None):
         
         # Create default project if not exists
         from app.models import Project, Settings
-        default_project = Project.query.get('default')
+        try:
+            default_project = Project.query.get('default')
+        except Exception:
+            default_project = None
+            
         if not default_project:
             default_project = Project(id='default', name='My Story')
             db.session.add(default_project)

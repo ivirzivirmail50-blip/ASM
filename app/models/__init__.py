@@ -275,7 +275,9 @@ class Plan(db.Model):
     # Relationships
     project = relationship('Project', back_populates='plans')
     subtasks = relationship('PlanSubtask', back_populates='plan', cascade='all, delete-orphan')
-    children = relationship('Plan', remote_side=[parent_id], backref='parent')
+    children = relationship('Plan', foreign_keys=[parent_id], back_populates='parent')
+    parent = relationship('Plan', remote_side=[id], foreign_keys=[parent_id], back_populates='children')
+    depends_on_rel = relationship('Plan', remote_side=[id], foreign_keys=[depends_on_id], backref='dependent_plans')
     
     def to_dict(self) -> dict:
         return {
@@ -349,7 +351,8 @@ class WorldEntry(db.Model):
     # Relationships
     project = relationship('Project', back_populates='world_entries')
     versions = relationship('WorldEntryVersion', back_populates='entry', cascade='all, delete-orphan')
-    children = relationship('WorldEntry', remote_side=[parent_id], backref='parent')
+    children = relationship('WorldEntry', foreign_keys=[parent_id], back_populates='parent')
+    parent = relationship('WorldEntry', remote_side=[id], foreign_keys=[parent_id], back_populates='children')
     relations_from = relationship('WorldEntryRelation', foreign_keys='WorldEntryRelation.from_entry_id', back_populates='from_entry', cascade='all, delete-orphan')
     relations_to = relationship('WorldEntryRelation', foreign_keys='WorldEntryRelation.to_entry_id', back_populates='to_entry', cascade='all, delete-orphan')
     

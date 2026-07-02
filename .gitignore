@@ -1,6 +1,6 @@
 ```
 # Database files
-instance/data/*.db
+*.db
 
 # Python
 __pycache__/
@@ -11,13 +11,17 @@ __pycache__/
 env/
 venv/
 .venv/
-.ENV
-.ENV.*
-.venv.bak/
-.ENV.bak/
+.ENV/
+.env
+
+# Logs
 *.log
-*.tmp
-*.swp
+
+# IDE
+.vscode/
+.idea/
+
+# OS
 .DS_Store
 Thumbs.db
 ```
