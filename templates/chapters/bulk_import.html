@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+{% block title %}Bulk Import{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('chapters.list_view') }}">Chapters</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Bulk Import</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Bulk Import</h1>
+    <div class="subtitle">Drag-drop multiple TXT, MD, DOCX, PDF, RTF, ODT, HTML files at once</div>
+  </div>
+  <a href="{{ url_for('chapters.list_view') }}" class="btn btn-ghost">← Back</a>
+</div>
+
+<div class="card mb-4">
+  <div class="card-grid cols-3 mb-4">
+    <div class="form-row">
+      <label class="form-label">Import as</label>
+      <select id="importAs" class="form-select" onchange="toggleWorldType()">
+        <option value="chapter">Chapters</option>
+        <option value="world_entry">World Entries (Lore, Locations, etc.)</option>
+      </select>
+    </div>
+    <div class="form-row" id="worldTypeRow" style="display: none">
+      <label class="form-label">World entry type</label>
+      <select id="worldType" class="form-select">
+        <option value="lore">Lore</option>
+        <option value="location">Location</option>
+        <option value="faction">Faction</option>
+        <option value="glossary">Glossary</option>
+        <option value="magic_system">Magic System</option>
+        <option value="species">Species</option>
+        <option value="culture">Culture</option>
+        <option value="technology">Technology</option>
+      </select>
+    </div>
+    <div class="form-row" id="statusRow">
+      <label class="form-label">Chapter status</label>
+      <select id="chapterStatus" class="form-select">
+        <option value="draft">Draft</option>
+        <option value="revised">Revised</option>
+        <option value="final">Final</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="dropzone"
+       style="border: 2px dashed var(--border-strong); border-radius: 12px;
+              padding: 3rem 1rem; text-align: center; cursor: pointer;
+              transition: all 0.2s ease; min-height: 200px;">
+    <div style="font-size: 3rem; opacity: 0.4">↥</div>
+    <div style="font-weight: 600; margin-top: 0.5rem">Drop files here or click to browse</div>
+    <div class="text-mute text-sm mt-2">TXT, MD, DOCX, PDF, RTF, ODT, HTML, CSV — multiple files OK · max 25 MB each</div>
+    <input type="file" id="fileInput" style="display: none" multiple
+           accept=".txt,.md,.markdown,.docx,.pdf,.rtf,.odt,.html,.htm,.csv">
+  </div>
+
+  <!-- File list -->
+  <div id="fileList" class="mt-4" style="display: none">
+    <div class="card-title mb-2">Files to import (<span id="fileCount">0</span>)</div>
+    <div id="fileItems" class="flex flex-col gap-1"></div>
+    <div class="flex justify-end gap-2 mt-3">
+      <button class="btn" onclick="clearFiles()">Clear</button>
+      <button class="btn btn-primary" id="importBtn" onclick="startImport()">↥ Import All</button>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div id="results" class="mt-4" style="display: none"></div>
+</div>
+
+<div class="card">
+  <div class="card-title mb-2">How it works</div>
+  <div class="card-grid cols-2">
+    <div>
+      <div class="text-sm" style="color: var(--text); font-weight: 600; margin-bottom: 0.3rem">Chapters</div>
+      <div class="text-sm text-dim">Each file becomes a separate chapter. The filename (without extension) is used as the chapter title. Original files are preserved in <code>data/raw/</code>.</div>
+    </div>
+    <div>
+      <div class="text-sm" style="color: var(--text); font-weight: 600; margin-bottom: 0.3rem">World Entries</div>
+      <div class="text-sm text-dim">Each file becomes a world entry of the selected type (lore, location, etc.). The filename is used as the entry name. PDF lore files are supported — text is extracted automatically.</div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let selectedFiles = [];
+
+function toggleWorldType() {
+  const val = document.getElementById("importAs").value;
+  document.getElementById("worldTypeRow").style.display = val === "world_entry" ? "block" : "none";
+  document.getElementById("statusRow").style.display = val === "chapter" ? "block" : "none";
+}
+
+const drop = document.getElementById("dropzone");
+const input = document.getElementById("fileInput");
+
+drop.addEventListener("click", () => input.click());
+drop.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  drop.style.background = "var(--accent-light)";
+  drop.style.borderColor = "var(--accent)";
+});
+drop.addEventListener("dragleave", () => {
+  drop.style.background = "";
+  drop.style.borderColor = "";
+});
+drop.addEventListener("drop", (e) => {
+  e.preventDefault();
+  drop.style.background = "";
+  drop.style.borderColor = "";
+  handleFiles(e.dataTransfer.files);
+});
+input.addEventListener("change", () => handleFiles(input.files));
+
+function handleFiles(files) {
+  for (const f of files) {
+    if (f.size > 25 * 1024 * 1024) {
+      showToast(`${f.name}: too large (max 25 MB)`, "error");
+      continue;
+    }
+    selectedFiles.push(f);
+  }
+  renderFileList();
+}
+
+function renderFileList() {
+  const list = document.getElementById("fileItems");
+  const count = document.getElementById("fileCount");
+  const container = document.getElementById("fileList");
+  if (!selectedFiles.length) {
+    container.style.display = "none";
+    return;
+  }
+  container.style.display = "block";
+  count.textContent = selectedFiles.length;
+  list.innerHTML = selectedFiles.map((f, i) => `
+    <div class="flex items-center gap-3" style="padding: 0.5rem; background: var(--bg-elev-2); border-radius: 6px">
+      <div style="font-size: 1.2rem">📄</div>
+      <div class="grow">
+        <div style="font-weight: 500">${escapeHtml(f.name)}</div>
+        <div class="text-mute text-xs">${(f.size / 1024).toFixed(1)} KB</div>
+      </div>
+      <button class="btn btn-ghost btn-icon btn-sm" onclick="removeFile(${i})">×</button>
+    </div>
+  `).join("");
+}
+
+function removeFile(idx) {
+  selectedFiles.splice(idx, 1);
+  renderFileList();
+}
+
+function clearFiles() {
+  selectedFiles = [];
+  input.value = "";
+  renderFileList();
+  document.getElementById("results").style.display = "none";
+}
+
+async function startImport() {
+  if (!selectedFiles.length) {
+    showToast("No files selected.", "warning");
+    return;
+  }
+  const btn = document.getElementById("importBtn");
+  btn.disabled = true;
+  btn.textContent = "Importing...";
+
+  const fd = new FormData();
+  selectedFiles.forEach(f => fd.append("files", f, f.name));
+  fd.append("import_as", document.getElementById("importAs").value);
+  fd.append("world_type", document.getElementById("worldType").value);
+  fd.append("status", document.getElementById("chapterStatus").value);
+  fd.append("csrf_token", getCsrfToken());
+
+  const res = await fetch("/chapters/bulk-import", {
+    method: "POST",
+    headers: { "X-CSRFToken": getCsrfToken() },
+    body: fd
+  });
+  let data;
+  try { data = await res.json(); }
+  catch { data = { ok: false, error: "Invalid response" }; }
+
+  btn.disabled = false;
+  btn.textContent = "↥ Import All";
+
+  const resultsDiv = document.getElementById("results");
+  resultsDiv.style.display = "block";
+
+  if (data.results && data.results.length) {
+    let html = `<div class="card-title mb-2" style="color: var(--success)">✓ ${data.imported} file(s) imported successfully</div>`;
+    html += '<div class="flex flex-col gap-1">';
+    for (const r of data.results) {
+      html += `<a href="${r.url}" class="flex items-center gap-2" style="padding: 0.4rem; background: var(--success-soft); border-radius: 6px; text-decoration: none">
+        <span style="color: var(--success)">✓</span>
+        <span style="color: var(--text); flex: 1">${escapeHtml(r.title)}</span>
+        <span class="text-mute text-xs">${escapeHtml(r.filename)}</span>
+      </a>`;
+    }
+    html += '</div>';
+    resultsDiv.innerHTML = html;
+  }
+
+  if (data.errors && data.errors.length) {
+    let html = `<div class="card-title mb-2" style="color: var(--danger)">✗ ${data.failed} file(s) failed</div>`;
+    html += '<div class="flex flex-col gap-1">';
+    for (const e of data.errors) {
+      html += `<div class="flex items-center gap-2" style="padding: 0.4rem; background: var(--danger-soft); border-radius: 6px">
+        <span style="color: var(--danger)">✗</span>
+        <span style="color: var(--text); flex: 1">${escapeHtml(e.filename)}</span>
+        <span class="text-mute text-xs">${escapeHtml(e.error)}</span>
+      </div>`;
+    }
+    html += '</div>';
+    if (data.results && data.results.length) {
+      resultsDiv.innerHTML += html;
+    } else {
+      resultsDiv.innerHTML = html;
+    }
+  }
+
+  if (data.imported > 0) {
+    showToast(`${data.imported} file(s) imported!`, "success");
+    selectedFiles = [];
+    renderFileList();
+  }
+}
+</script>
+{% endblock %}

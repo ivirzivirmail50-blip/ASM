@@ -1,0 +1,47 @@
+{#
+  Reusable dropdown component — context menu / action menu.
+  Usage:
+    {% set dropdown_id = "chapterActions" %}
+    {% set dropdown_label = "Actions ▾" %}
+    {% set dropdown_items = [
+      {"label": "Edit", "href": "/chapters/x/edit", "icon": "✎"},
+      {"label": "Export", "href": "/chapters/x/export/pdf", "icon": "↧"},
+      {"label": "Delete", "onclick": "deleteChapter()", "icon": "🗑", "variant": "danger"}
+    ] %}
+    {% include "components/dropdown.html" %}
+#}
+<div class="relative" style="display: inline-block">
+  <button class="btn {{ dropdown_btn_class|default('') }}"
+          onclick="document.getElementById('{{ dropdown_id }}').classList.toggle('hidden')">
+    {{ dropdown_label|default('Actions ▾') }}
+  </button>
+  <div id="{{ dropdown_id }}" class="hidden absolute card"
+       style="right: 0; min-width: {{ dropdown_min_width|default('160px') }}; padding: 0.4rem; z-index: 20">
+    {% for item in dropdown_items|default([]) %}
+    {% if item.href %}
+    <a class="btn btn-ghost btn-sm w-full {{ 'text-danger' if item.variant == 'danger' }}"
+       style="justify-content: flex-start"
+       href="{{ item.href }}">
+      {% if item.icon %}<span style="width: 18px">{{ item.icon }}</span>{% endif %}
+      {{ item.label }}
+    </a>
+    {% else %}
+    <button class="btn btn-ghost btn-sm w-full {{ 'text-danger' if item.variant == 'danger' }}"
+            style="justify-content: flex-start"
+            onclick="{{ item.onclick }}">
+      {% if item.icon %}<span style="width: 18px">{{ item.icon }}</span>{% endif %}
+      {{ item.label }}
+    </button>
+    {% endif %}
+    {% endfor %}
+  </div>
+</div>
+<script>
+// Close dropdown on outside click
+document.addEventListener("click", function(e) {
+  const dd = document.getElementById("{{ dropdown_id }}");
+  if (dd && !dd.classList.contains("hidden") && !e.target.closest("#{{ dropdown_id }}") && !e.target.closest("button")) {
+    dd.classList.add("hidden");
+  }
+});
+</script>

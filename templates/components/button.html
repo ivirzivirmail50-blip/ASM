@@ -1,0 +1,30 @@
+{#
+  Reusable button component.
+  Usage:
+    {% set btn_text = "Save" %}
+    {% set btn_variant = "primary" %}
+    {% set btn_size = "sm" %}
+    {% set btn_type = "button" %}
+    {% set btn_onclick = "save()" %}
+    {% set btn_href = "/path" %}
+    {% set btn_id = "saveBtn" %}
+    {% include "components/button.html" %}
+  Variants: primary, secondary, ghost, danger, success
+  Sizes: sm, lg, (default)
+#}
+{% if btn_href %}
+<a href="{{ btn_href }}" class="btn btn-{{ btn_variant|default('secondary') }} {{ 'btn-' ~ btn_size if btn_size }} {{ btn_class|default('') }}"
+   id="{{ btn_id|default('') }}"
+   {% if btn_title %}title="{{ btn_title }}"{% endif %}>
+  {{ btn_text|default('') }}
+</a>
+{% else %}
+<button type="{{ btn_type|default('button') }}"
+        class="btn btn-{{ btn_variant|default('secondary') }} {{ 'btn-' ~ btn_size if btn_size }} {{ btn_class|default('') }}"
+        id="{{ btn_id|default('') }}"
+        {% if btn_onclick %}onclick="{{ btn_onclick }}"{% endif %}
+        {% if btn_title %}title="{{ btn_title }}"{% endif %}
+        {% if btn_disabled %}disabled{% endif %}>
+  {{ btn_text|default('') }}
+</button>
+{% endif %}

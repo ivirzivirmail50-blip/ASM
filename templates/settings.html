@@ -1,0 +1,415 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Settings</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Settings</h1>
+    <div class="subtitle">Configure your story, editor, backup, and more</div>
+  </div>
+</div>
+
+<div class="tabs">
+  <a class="tab active" data-tab="appearance">Appearance</a>
+  <a class="tab" data-tab="story">Story</a>
+  <a class="tab" data-tab="goals">Goals</a>
+  <a class="tab" data-tab="versioning">Versioning</a>
+  <a class="tab" data-tab="manuscript">Manuscript</a>
+  <a class="tab" data-tab="worldtypes">World Types</a>
+  <a class="tab" data-tab="backup">Backup</a>
+  <a class="tab" data-tab="importexport">Import / Export</a>
+  <a class="tab" data-tab="validate">Data Health</a>
+  <a class="tab" data-tab="ai">AI (optional)</a>
+</div>
+
+<!-- Appearance -->
+<div class="tab-panel" data-panel="appearance">
+  <div class="card">
+    <div class="card-title mb-3">Appearance</div>
+    <div class="card-grid cols-3 mb-4">
+      <div class="form-row">
+        <label class="form-label">Theme</label>
+        <select name="theme" class="form-select" data-setting>
+          <option value="dark" {{ 'selected' if settings.theme == 'dark' }}>Dark (default)</option>
+          <option value="light" {{ 'selected' if settings.theme == 'light' }}>Light</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Editor font</label>
+        <select name="editor_font" class="form-select" data-setting>
+          <option value="serif" {{ 'selected' if settings.editor_font == 'serif' }}>Serif (Noto Serif)</option>
+          <option value="sans" {{ 'selected' if settings.editor_font == 'sans' }}>Sans (Inter)</option>
+          <option value="mono" {{ 'selected' if settings.editor_font == 'mono' }}>Mono (JetBrains)</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Editor font size: <span id="fontVal">{{ settings.editor_font_size }}</span>px</label>
+        <input type="range" name="editor_font_size" min="12" max="24" value="{{ settings.editor_font_size }}"
+               class="form-input" data-setting oninput="document.getElementById('fontVal').textContent=this.value">
+      </div>
+    </div>
+    <div class="card-grid cols-3">
+      <div class="form-row">
+        <label class="form-label">Chapter viewer font</label>
+        <select name="chapter_viewer_font" class="form-select" data-setting>
+          <option value="serif" {{ 'selected' if settings.chapter_viewer_font == 'serif' }}>Serif</option>
+          <option value="sans" {{ 'selected' if settings.chapter_viewer_font == 'sans' }}>Sans</option>
+          <option value="mono" {{ 'selected' if settings.chapter_viewer_font == 'mono' }}>Mono</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Chapter viewer font size</label>
+        <input type="number" name="chapter_viewer_font_size" value="{{ settings.chapter_viewer_font_size }}"
+               class="form-input" data-setting min="12" max="24">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Default chapter sort</label>
+        <select name="chapter_sort_default" class="form-select" data-setting>
+          <option value="sort_order" {{ 'selected' if settings.chapter_sort_default == 'sort_order' }}>Manual order</option>
+          <option value="title" {{ 'selected' if settings.chapter_sort_default == 'title' }}>Title</option>
+          <option value="updated_at" {{ 'selected' if settings.chapter_sort_default == 'updated_at' }}>Date modified</option>
+        </select>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Story metadata -->
+<div class="tab-panel hidden" data-panel="story">
+  <div class="card">
+    <div class="card-title mb-3">Story Metadata</div>
+    <div class="card-grid cols-2 mb-4">
+      <div class="form-row">
+        <label class="form-label">Story title</label>
+        <input type="text" name="story_title" value="{{ settings.story_title }}" class="form-input" data-setting>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Author</label>
+        <input type="text" name="story_author" value="{{ settings.story_author }}" class="form-input" data-setting>
+      </div>
+    </div>
+    <div class="card-grid cols-2 mb-4">
+      <div class="form-row">
+        <label class="form-label">Genre</label>
+        <input type="text" name="story_genre" value="{{ settings.story_genre }}" class="form-input" data-setting>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Default chapter status</label>
+        <select name="default_chapter_status" class="form-select" data-setting>
+          <option value="draft" {{ 'selected' if settings.default_chapter_status == 'draft' }}>Draft</option>
+          <option value="revised" {{ 'selected' if settings.default_chapter_status == 'revised' }}>Revised</option>
+          <option value="final" {{ 'selected' if settings.default_chapter_status == 'final' }}>Final</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Description</label>
+      <textarea name="story_description" class="form-textarea" rows="3" data-setting>{{ settings.story_description }}</textarea>
+    </div>
+  </div>
+</div>
+
+<!-- Goals -->
+<div class="tab-panel hidden" data-panel="goals">
+  <div class="card">
+    <div class="card-title mb-3">Writing Goals</div>
+    <div class="card-grid cols-2">
+      <div class="form-row">
+        <label class="form-label">Daily word goal</label>
+        <input type="number" name="daily_word_goal" value="{{ settings.daily_word_goal }}" class="form-input" data-setting min="0">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Total word goal</label>
+        <input type="number" name="total_word_goal" value="{{ settings.total_word_goal }}" class="form-input" data-setting min="0">
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Versioning -->
+<div class="tab-panel hidden" data-panel="versioning">
+  <div class="card">
+    <div class="card-title mb-3">Versioning Policy</div>
+    <div class="card-grid cols-2">
+      <div class="form-row">
+        <label class="form-label">Snapshot interval (minutes)</label>
+        <input type="number" name="version_snapshot_interval_minutes" value="{{ settings.version_snapshot_interval_minutes }}"
+               class="form-input" data-setting min="1">
+        <div class="form-hint">If a chapter changed since its last snapshot by more than this interval, the next save snapshots it.</div>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Autosave interval (seconds)</label>
+        <input type="number" name="autosave_interval_seconds" value="{{ settings.autosave_interval_seconds }}"
+               class="form-input" data-setting min="1">
+        <div class="form-hint">Editor autosaves content (no version row created) every N seconds.</div>
+      </div>
+    </div>
+  </div>
+  <div class="card mt-4">
+    <div class="card-title mb-3">Pagination Defaults</div>
+    <p class="text-sm text-dim">Control how many items are shown per page across the app.</p>
+    <div class="card-grid cols-3">
+      <div class="form-row">
+        <label class="form-label">Chapters per page</label>
+        <input type="number" name="chapters_per_page" value="{{ settings.chapters_per_page }}"
+               class="form-input" data-setting min="5" max="100">
+      </div>
+      <div class="form-row">
+        <label class="form-label">World entries per page</label>
+        <input type="number" name="world_per_page" value="{{ settings.world_per_page }}"
+               class="form-input" data-setting min="5" max="100">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Search results per module</label>
+        <input type="number" name="search_results_per_module" value="{{ settings.search_results_per_module }}"
+               class="form-input" data-setting min="5" max="100">
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Backup -->
+<div class="tab-panel hidden" data-panel="backup">
+  <div class="card">
+    <div class="card-title mb-3">Backup</div>
+    <div class="card-grid cols-2 mb-4">
+      <div class="form-row">
+        <label class="form-label">Auto-backup</label>
+        <select name="auto_backup_enabled" class="form-select" data-setting>
+          <option value="true" {{ 'selected' if settings.auto_backup_enabled }}>Enabled</option>
+          <option value="false" {{ 'selected' if not settings.auto_backup_enabled }}>Disabled</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Backup interval (hours)</label>
+        <input type="number" name="auto_backup_interval_hours" value="{{ settings.auto_backup_interval_hours }}"
+               class="form-input" data-setting min="1">
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <button class="btn btn-primary" onclick="createBackupNow()">Backup Now</button>
+      <a href="{{ url_for('settings.backup') }}" class="btn">Manage Backups</a>
+      <a href="{{ url_for('settings.export_json') }}" class="btn">↧ Export Project JSON</a>
+    </div>
+  </div>
+</div>
+
+<!-- Validate -->
+<div class="tab-panel hidden" data-panel="validate">
+  <div class="card">
+    <div class="card-title mb-3">Data Health Check</div>
+    <p>Run a reference-integrity scan: find dangling links, word-count mismatches, orphans.</p>
+    <div class="flex gap-2">
+      <a href="{{ url_for('settings.validate') }}" class="btn btn-primary">Run Check →</a>
+    </div>
+  </div>
+</div>
+
+<!-- Manuscript formatting -->
+<div class="tab-panel hidden" data-panel="manuscript">
+  <div class="card">
+    <div class="card-title mb-3">Manuscript Formatting Defaults</div>
+    <p class="text-sm text-dim">Applied to print-ready PDF exports (Courier New is the industry standard).</p>
+    <div class="card-grid cols-2">
+      <div class="form-row">
+        <label class="form-label">Font</label>
+        <select name="manuscript_font" class="form-select" data-setting>
+          <option value="Courier" {{ 'selected' if settings.manuscript_font == 'Courier' }}>Courier (default)</option>
+          <option value="Times-Roman" {{ 'selected' if settings.manuscript_font == 'Times-Roman' }}>Times Roman</option>
+          <option value="Helvetica" {{ 'selected' if settings.manuscript_font == 'Helvetica' }}>Helvetica</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Font size (pt)</label>
+        <input type="number" name="manuscript_font_size" value="{{ settings.manuscript_font_size }}"
+               class="form-input" data-setting min="8" max="16">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Line spacing (×)</label>
+        <input type="number" name="manuscript_line_spacing" value="{{ settings.manuscript_line_spacing }}"
+               class="form-input" data-setting step="0.1" min="1" max="3">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Margins (inch)</label>
+        <input type="number" name="manuscript_margins" value="{{ settings.manuscript_margins }}"
+               class="form-input" data-setting step="0.1" min="0.5" max="2">
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Custom World Types -->
+<div class="tab-panel hidden" data-panel="worldtypes">
+  <div class="card">
+    <div class="card-title mb-3">Custom World Entity Types</div>
+    <p class="text-sm text-dim">Default types (location, lore, faction, glossary, magic_system, species, culture, technology) cannot be removed. Add custom types below.</p>
+    <div class="flex gap-2 mb-4">
+      <input type="text" id="newWorldType" class="form-input" placeholder="e.g., religion, language, artifact"
+             style="flex: 1">
+      <button class="btn btn-primary" onclick="addWorldType()">+ Add Type</button>
+    </div>
+    <div id="worldTypesList" class="flex flex-wrap gap-2">
+      <!-- populated by JS on load + after add/remove -->
+    </div>
+  </div>
+</div>
+
+<!-- Import / Export -->
+<div class="tab-panel hidden" data-panel="importexport">
+  <div class="card mb-4">
+    <div class="card-title mb-3">Full Database Export</div>
+    <p class="text-sm text-dim">Export the entire database (chapters, characters, world, plans, settings) as JSON. API keys are stripped for security.</p>
+    <div class="flex gap-2">
+      <a href="{{ url_for('settings.export_json') }}" class="btn btn-primary">↧ Export Full Database (JSON)</a>
+    </div>
+  </div>
+  <div class="card mb-4">
+    <div class="card-title mb-3">Full Database Import</div>
+    <p class="text-sm text-dim">Import a previously exported JSON file. Merges data — existing entities with matching IDs are skipped. No data is overwritten.</p>
+    <div class="flex gap-2">
+      <a href="{{ url_for('settings.import_json') }}" class="btn btn-primary">↥ Import Full Database (JSON) →</a>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title mb-3">ZIP Backup (Alternative)</div>
+    <p class="text-sm text-dim">Create a ZIP backup of the entire database + raw files. Restore replaces the current database entirely.</p>
+    <div class="flex gap-2">
+      <a href="{{ url_for('settings.backup') }}" class="btn">📦 Manage Backups</a>
+    </div>
+  </div>
+</div>
+
+<!-- AI -->
+<div class="tab-panel hidden" data-panel="ai">
+  <div class="card">
+    <div class="card-title mb-3">AI Configuration (Optional)</div>
+    <p>AI is <strong>disabled by default</strong>. When enabled, you can use Ollama locally or any OpenAI-compatible endpoint.</p>
+    <a href="{{ url_for('settings.ai_settings') }}" class="btn btn-primary">Configure AI →</a>
+  </div>
+</div>
+
+<!-- Save bar -->
+<div class="flex justify-end gap-2 mt-4" style="position: sticky; bottom: 1rem; padding: 1rem; background: var(--bg-elev-1); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow)">
+  <span id="saveHint" class="text-mute text-sm self-center">Changes apply on Save.</span>
+  <button class="btn btn-primary" id="saveAllBtn" onclick="saveAll()">Save All Settings</button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll(".tab").forEach(t => {
+  t.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+    document.querySelectorAll(".tab-panel").forEach(p => p.classList.add("hidden"));
+    t.classList.add("active");
+    document.querySelector(`[data-panel="${t.dataset.tab}"]`).classList.remove("hidden");
+  });
+});
+
+async function saveAll() {
+  const btn = document.getElementById("saveAllBtn");
+  const orig = btn.textContent;
+  btn.textContent = "Saving…";
+  btn.disabled = true;
+  const payload = {};
+  document.querySelectorAll("[data-setting]").forEach(el => {
+    const name = el.getAttribute("name");
+    let v = el.value;
+    if (el.type === "checkbox") v = el.checked;
+    payload[name] = v;
+  });
+  try {
+    const { data } = await asmFetch("/settings/save", { method: "POST", body: payload });
+    if (data.ok) {
+      showToast("Settings saved.", "success");
+      if (payload.theme) document.documentElement.setAttribute("data-theme", payload.theme);
+    } else {
+      showToast(data.error || "Save failed", "error");
+    }
+  } finally {
+    btn.textContent = orig;
+    btn.disabled = false;
+  }
+}
+
+async function createBackupNow() {
+  const { data } = await asmFetch("/settings/backup", { method: "POST" });
+  if (data.ok) showToast(`Backup created: ${data.name}`, "success");
+  else showToast(data.error || "Failed", "error");
+}
+
+// ---- Custom World Types ----
+const DEFAULT_TYPES = ["location", "lore", "faction", "glossary", "magic_system", "species", "culture", "technology"];
+
+async function loadWorldTypes() {
+  // Fetch from settings (no direct endpoint; we hit world index and parse)
+  // Simpler: use the world-types endpoint with action=list (we'll add it)
+  // For now, fetch all types via a HEAD to /world/ and parse from page
+  const r = await fetch("/world/?type=location", { headers: { "Accept": "text/html" } });
+  const html = await r.text();
+  // Parse types from the tabs
+  const match = html.match(/<div class="tabs">([\s\S]*?)<\/div>/);
+  const container = document.getElementById("worldTypesList");
+  container.innerHTML = "";
+  if (match) {
+    const tabMatches = match[1].matchAll(/data-type-hint="([^"]+)"|>([a-z_]+)</g);
+    // Simpler: just call the endpoint
+  }
+  // Use the world-types endpoint with a list action via fetch to /world/ and parse
+  // Actually simplest: fetch /world/new and parse the type select
+  const r2 = await fetch("/world/new");
+  const html2 = await r2.text();
+  const selectMatch = html2.match(/<select name="type"[^>]*>([\s\S]*?)<\/select>/);
+  if (selectMatch) {
+    const options = selectMatch[1].matchAll(/<option value="([^"]+)"/g);
+    const types = Array.from(options).map(m => m[1]);
+    types.forEach(t => {
+      const isDefault = DEFAULT_TYPES.includes(t);
+      const pill = document.createElement("span");
+      pill.className = "badge no-dot";
+      pill.style.cssText = "padding: 0.4rem 0.8rem; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.4rem";
+      pill.innerHTML = `${t.replace(/_/g, ' ')} ${isDefault ? '' : `<button onclick="removeWorldType('${t}')" style="background: transparent; border: none; color: var(--danger); cursor: pointer; padding: 0; margin-left: 0.3rem">×</button>`}`;
+      if (!isDefault) pill.style.background = "var(--accent-soft)";
+      container.appendChild(pill);
+    });
+  }
+}
+
+async function addWorldType() {
+  const input = document.getElementById("newWorldType");
+  const name = input.value.trim();
+  if (!name) { showToast("Type name required.", "warning"); return; }
+  const { data } = await asmFetch("/settings/world-types", {
+    method: "POST", body: { action: "add", name }
+  });
+  if (data.ok) {
+    input.value = "";
+    showToast(`Added type: ${name}`, "success");
+    loadWorldTypes();
+  } else {
+    showToast(data.error || "Failed", "error");
+  }
+}
+
+async function removeWorldType(name) {
+  const ok = await confirmDialog(`Remove custom type '${name}'? Existing entries of this type are NOT deleted.`, { danger: true, okLabel: "Remove" });
+  if (!ok) return;
+  const { data } = await asmFetch("/settings/world-types", {
+    method: "POST", body: { action: "remove", name }
+  });
+  if (data.ok) {
+    showToast(`Removed type: ${name}`, "success");
+    loadWorldTypes();
+  } else {
+    showToast(data.error || "Failed", "error");
+  }
+}
+
+document.addEventListener("DOMContentLoaded", loadWorldTypes);
+</script>
+{% endblock %}

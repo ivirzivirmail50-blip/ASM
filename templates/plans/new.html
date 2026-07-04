@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}New Plan Item{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('plans.board') }}">Plans</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">New</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>New Plan Item</h1>
+    <div class="subtitle">Add a story beat to the Kanban board</div>
+  </div>
+  <a href="{{ url_for('plans.board') }}" class="btn btn-ghost">← Back</a>
+</div>
+
+<form id="planForm" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="form-row">
+    <label class="form-label">Title <span class="text-danger">*</span></label>
+    <input type="text" name="title" required maxlength="500" class="form-input">
+  </div>
+  <div class="form-row">
+    <label class="form-label">Description</label>
+    <textarea name="description" class="form-textarea" rows="3"></textarea>
+  </div>
+  <div class="card-grid cols-3 mb-4">
+    <div class="form-row">
+      <label class="form-label">Status / Column</label>
+      <select name="status" class="form-select">
+        {% for s in statuses %}
+        <option value="{{ s }}" {{ 'selected' if s == 'idea' }}>{{ s|replace('_',' ')|title }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Track (timeline lane)</label>
+      <input type="text" name="track" class="form-input" placeholder="Main Plot">
+    </div>
+    <div class="form-row">
+      <label class="form-label">Event type</label>
+      <select name="event_type" class="form-select">
+        <option value="">—</option>
+        <option value="plot_point">Plot point</option>
+        <option value="character_moment">Character moment</option>
+        <option value="climax">Climax</option>
+        <option value="resolution">Resolution</option>
+        <option value="custom">Custom</option>
+      </select>
+    </div>
+  </div>
+  <div class="card-grid cols-3 mb-4">
+    <div class="form-row">
+      <label class="form-label">Story date</label>
+      <input type="text" name="story_date" class="form-input" placeholder="Day 1, Year 321">
+    </div>
+    <div class="form-row">
+      <label class="form-label">Deadline</label>
+      <input type="date" name="deadline" class="form-input">
+    </div>
+    <div class="form-row">
+      <label class="form-label">Effort estimate (words)</label>
+      <input type="number" name="effort_estimate" class="form-input" min="0">
+    </div>
+  </div>
+  <div class="form-row">
+    <label class="form-label">Characters involved</label>
+    <div class="form-checkbox-group">
+      {% for c in characters %}
+      <label>
+        <input type="checkbox" name="characters_involved" value="{{ c.id }}">
+        <span class="avatar avatar-sm" style="background: {{ c.avatar_color }}; width: 20px; height: 20px; font-size: 0.65rem">{{ c.name[:1]|upper }}</span>
+        {{ c.name }}
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="form-row">
+    <label class="form-label">Tags (comma-separated)</label>
+    <input type="text" name="tags" class="form-input">
+  </div>
+  <div class="flex justify-end gap-2">
+    <a href="{{ url_for('plans.board') }}" class="btn">Cancel</a>
+    <button type="submit" class="btn btn-primary">Save</button>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById("planForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const res = await fetch(e.target.action, {
+    method: "POST",
+    headers: { "X-CSRFToken": getCsrfToken() },
+    body: fd
+  });
+  let data;
+  try { data = await res.json(); }
+  catch { data = { ok: false, error: "Server returned an error. Check if CSRF token is valid." }; }
+  if (data.ok) {
+    showToast("Plan item created.", "success");
+    if (data.url) setTimeout(() => window.location.href = data.url, 500);
+  } else {
+    showToast(data.error || "Save failed", "error");
+  }
+});
+</script>
+{% endblock %}

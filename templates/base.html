@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="{{ theme or 'dark' }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ story_title or 'Absolute Story Manager' }}{% endblock %} — ASM</title>
+  <meta name="csrf-token" content="{{ csrf_token }}">
+
+  <!-- Vendor CSS (all local) -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/tailwind/tailwind.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/vis-network/vis-network.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/easymde/easymde.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+
+  <script>
+    window.ASM = {
+      csrfToken: "{{ csrf_token }}",
+      theme: "{{ theme or 'dark' }}",
+      sidebarCollapsed: {{ 'true' if settings and settings.get('sidebar_collapsed') else 'false' }}
+    };
+  </script>
+</head>
+<body>
+  <div class="app-shell" id="appShell"
+       data-sidebar-collapsed="{{ 'true' if settings and settings.get('sidebar_collapsed') else 'false' }}">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <span class="logo-mark">A</span>
+        <span>Absolute Story</span>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="sidebar-section-label">Workspace</div>
+        <a href="{{ url_for('dashboard.index') }}"
+           class="{{ 'active' if active_nav == 'dashboard' else '' }}">
+          <span class="nav-icon">⬢</span><span>Dashboard</span>
+        </a>
+        <a href="{{ url_for('projects.list_projects') }}"
+           class="{{ 'active' if active_nav == 'projects' else '' }}">
+          <span class="nav-icon">📖</span><span>Books / Series</span>
+        </a>
+        <a href="{{ url_for('search.index') }}"
+           class="{{ 'active' if active_nav == 'search' else '' }}">
+          <span class="nav-icon">⌕</span><span>Search</span>
+        </a>
+
+        <div class="sidebar-section-label">Story</div>
+        <a href="{{ url_for('chapters.list_view') }}"
+           class="{{ 'active' if active_nav == 'chapters' else '' }}">
+          <span class="nav-icon">▤</span><span>Chapters</span>
+        </a>
+        <a href="{{ url_for('characters.list_view') }}"
+           class="{{ 'active' if active_nav == 'characters' else '' }}">
+          <span class="nav-icon">♛</span><span>Characters</span>
+        </a>
+        <a href="{{ url_for('characters.groups') }}"
+           class="{{ 'active' if active_nav == 'characters_groups' else '' }}">
+          <span class="nav-icon">▤</span><span>Character Groups</span>
+        </a>
+        <a href="{{ url_for('characters.graph') }}"
+           class="{{ 'active' if active_nav == 'characters_graph' else '' }}">
+          <span class="nav-icon">⦿</span><span>Relationship Graph</span>
+        </a>
+        <a href="{{ url_for('characters.compare') }}"
+           class="{{ 'active' if active_nav == 'characters_compare' else '' }}">
+          <span class="nav-icon">⇄</span><span>Compare Characters</span>
+        </a>
+
+        <div class="sidebar-section-label">Planning</div>
+        <a href="{{ url_for('plans.board') }}"
+           class="{{ 'active' if active_nav == 'plans' else '' }}">
+          <span class="nav-icon">▦</span><span>Kanban Board</span>
+        </a>
+        <a href="{{ url_for('plans.corkboard') }}"
+           class="{{ 'active' if active_nav == 'plans_corkboard' else '' }}">
+          <span class="nav-icon">⊟</span><span>Corkboard</span>
+        </a>
+        <a href="{{ url_for('plans.outline') }}"
+           class="{{ 'active' if active_nav == 'plans_outline' else '' }}">
+          <span class="nav-icon">≣</span><span>Outline</span>
+        </a>
+        <a href="{{ url_for('plans.timeline') }}"
+           class="{{ 'active' if active_nav == 'plans_timeline' else '' }}">
+          <span class="nav-icon">⌗</span><span>Timeline</span>
+        </a>
+
+        <div class="sidebar-section-label">World</div>
+        <a href="{{ url_for('world.index') }}"
+           class="{{ 'active' if active_nav == 'world' else '' }}">
+          <span class="nav-icon">🌍</span><span>World Library</span>
+        </a>
+        <a href="{{ url_for('world.hierarchy') }}"
+           class="{{ 'active' if active_nav == 'world_hierarchy' else '' }}">
+          <span class="nav-icon">🌳</span><span>Location Tree</span>
+        </a>
+        <a href="{{ url_for('world.map_view') }}"
+           class="{{ 'active' if active_nav == 'world_map' else '' }}">
+          <span class="nav-icon">⛨</span><span>World Map</span>
+        </a>
+
+        <div class="sidebar-section-label">System</div>
+        <a href="{{ url_for('chapters.import_center') }}"
+           class="{{ 'active' if active_nav == 'import' else '' }}">
+          <span class="nav-icon">↥</span><span>Import Center</span>
+        </a>
+        <a href="{{ url_for('lint.index') }}"
+           class="{{ 'active' if active_nav == 'lint' else '' }}">
+          <span class="nav-icon">🔍</span><span>Story Lint</span>
+        </a>
+        <a href="{{ url_for('pacing.index') }}"
+           class="{{ 'active' if active_nav == 'pacing' else '' }}">
+          <span class="nav-icon">📊</span><span>Pacing Analysis</span>
+        </a>
+        <a href="{{ url_for('export.index') }}"
+           class="{{ 'active' if active_nav == 'export' else '' }}">
+          <span class="nav-icon">↧</span><span>Export</span>
+        </a>
+        <a href="{{ url_for('settings.index') }}"
+           class="{{ 'active' if active_nav == 'settings' else '' }}">
+          <span class="nav-icon">⚙</span><span>Settings</span>
+        </a>
+        {% if settings and settings.get('ai.enabled') %}
+        <div class="sidebar-section-label" style="color: var(--accent-hover)">✨ AI Assistant</div>
+        <a href="javascript:void(0)" onclick="openAIChat()">
+          <span class="nav-icon">💬</span><span>AI Chat</span>
+        </a>
+        <a href="javascript:void(0)" onclick="aiConsistencyCheck()">
+          <span class="nav-icon">🔍</span><span>Consistency Check</span>
+        </a>
+        <a href="javascript:void(0)" onclick="aiNameGenerator()">
+          <span class="nav-icon">🎲</span><span>Name Generator</span>
+        </a>
+        <a href="{{ url_for('ai_history.index') }}"
+           class="{{ 'active' if active_nav == 'ai_history' else '' }}">
+          <span class="nav-icon">📋</span><span>AI History</span>
+        </a>
+        <a href="{{ url_for('settings.ai_settings') }}"
+           class="{{ 'active' if active_nav == 'settings_ai' else '' }}">
+          <span class="nav-icon">⚙</span><span>AI Settings</span>
+        </a>
+        {% endif %}
+      </nav>
+      <div class="sidebar-footer">
+        <span class="footer-text">ASM v4.0 · local</span>
+        <button class="btn btn-ghost btn-icon btn-sm" title="Toggle theme"
+                onclick="toggleTheme()">◐</button>
+      </div>
+    </aside>
+
+    <!-- Main area -->
+    <div class="main-area">
+      <header class="topbar">
+        <button class="mobile-menu-btn" onclick="toggleMobileNav()">☰</button>
+        <button class="btn btn-ghost btn-icon" title="Toggle sidebar"
+                onclick="toggleSidebar()">☰</button>
+        <nav class="topbar-breadcrumb">
+          {% block breadcrumb %}
+          <a href="{{ url_for('dashboard.index') }}">Home</a>
+          {% endblock %}
+        </nav>
+        <form action="{{ url_for('search.index') }}" method="get" class="flex items-center gap-2"
+              style="background: var(--bg-elev-2); border: 1px solid var(--border); border-radius: 8px; padding: 0.3rem 0.6rem;">
+          <span class="text-mute">⌕</span>
+          <input type="text" name="q" placeholder="Search… (press /)"
+                 value="{{ request.args.get('q', '') }}"
+                 style="background: transparent; border: none; outline: none; color: var(--text); width: 220px; font-size: 0.85rem;">
+        </form>
+        <a href="{{ url_for('chapters.new') }}" class="btn btn-primary btn-sm">+ New Chapter</a>
+      </header>
+
+      <main class="content">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+
+  <!-- Floating undo toolbar -->
+  <div class="undo-toolbar">
+    <button id="undoBtn" title="Undo (Ctrl+Z)" disabled>↶</button>
+    <button id="redoBtn" title="Redo (Ctrl+Shift+Z)" disabled>↷</button>
+  </div>
+
+  <!-- Quick Switch modal (Ctrl+P) -->
+  <div class="quickswitch-overlay" id="quickSwitchOverlay" style="display:none">
+    <div class="quickswitch-modal">
+      <div class="quickswitch-input-wrap">
+        <span class="quickswitch-icon">⌕</span>
+        <input type="text" id="quickSwitchInput"
+               placeholder="Search chapters, characters, world entries, or type a command…"
+               autocomplete="off" spellcheck="false">
+        <kbd class="quickswitch-hint">Esc to close</kbd>
+      </div>
+      <div class="quickswitch-results" id="quickSwitchResults"></div>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Vendor JS (all local) -->
+  <script src="{{ url_for('static', filename='vendor/alpine/alpine.min.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='vendor/sortablejs/Sortable.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/vis-network/vis-network.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/easymde/easymde.min.js') }}" defer></script>
+
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  {% if settings and settings.get('ai.enabled') %}
+  <script src="{{ url_for('static', filename='js/ai.js') }}"></script>
+  {% endif %}
+  {% block scripts %}{% endblock %}
+</body>
+</html>

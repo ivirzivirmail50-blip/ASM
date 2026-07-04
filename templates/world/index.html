@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}World Library{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">World Library</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>World Library</h1>
+    <div class="subtitle">{{ entries|length }} entr{{ 'ies' if entries|length != 1 else 'y' }} · {{ type_|title }}</div>
+  </div>
+  <div class="actions">
+    <a href="{{ url_for('world.map_view') }}" class="btn">🦁 World Map</a>
+    <a href="{{ url_for('world.new') }}" class="btn btn-primary">+ New Entry</a>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  {% for t in types %}
+  <a class="tab {{ 'active' if t == type_ }}" href="?type={{ t }}">{{ t|replace('_',' ')|title }}</a>
+  {% endfor %}
+</div>
+
+<!-- Filter -->
+<div class="card mb-6">
+  <form method="get" class="flex flex-wrap gap-3 items-center">
+    <input type="hidden" name="type" value="{{ type_ }}">
+    <input type="text" name="q" value="{{ search }}" placeholder="Search…" class="form-input" style="width: 240px">
+    <input type="text" name="category" value="{{ category }}" placeholder="Category" class="form-input" style="width: 160px">
+    <select name="sort" class="form-select" style="width: 160px">
+      <option value="name" {{ 'selected' if sort == 'name' }}>Name A→Z</option>
+      <option value="category" {{ 'selected' if sort == 'category' }}>Category</option>
+      <option value="created_at" {{ 'selected' if sort == 'created_at' }}>Date created</option>
+      <option value="updated_at" {{ 'selected' if sort == 'updated_at' }}>Date modified</option>
+    </select>
+    <button class="btn btn-primary">Apply</button>
+  </form>
+</div>
+
+{% if entries %}
+<div class="card-grid cols-3">
+  {% for e in entries %}
+  <div class="card" data-id="{{ e.id }}">
+    <div class="flex items-center justify-between mb-2">
+      <span class="text-mute text-xs">{{ e.category or 'Uncategorized' }}</span>
+      <span class="drag-handle text-mute" title="Drag to reorder">⠿</span>
+    </div>
+    <a href="{{ url_for('world.detail', entry_id=e.id) }}"
+       style="font-weight: 600; color: var(--text); text-decoration: none; font-size: 1.05rem">
+      {{ e.name }}
+    </a>
+    {% if e.description %}
+    <div class="text-sm text-dim mt-2">{{ e.description[:140] }}{% if e.description|length > 140 %}…{% endif %}</div>
+    {% endif %}
+    <div class="text-xs text-mute mt-3">Updated {{ e.updated_at.strftime('%Y-%m-%d') if e.updated_at else '-' }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Pagination -->
+{% if pages > 1 %}
+<div class="flex items-center justify-center gap-2 mt-6">
+  {% for p in range(1, pages + 1) %}
+  <a href="?type={{ type_ }}&q={{ search }}&category={{ category }}&sort={{ sort }}&page={{ p }}"
+     class="btn btn-sm {{ 'btn-primary' if p == page else '' }}">{{ p }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">🌍</div>
+  <h3>No {{ type_|replace('_',' ') }} entries yet</h3>
+  <a href="{{ url_for('world.new', type=type_) }}" class="btn btn-primary mt-3">+ New Entry</a>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const grid = document.querySelector(".card-grid.cols-3");
+  if (grid && typeof Sortable !== "undefined") {
+    Sortable.create(grid, {
+      animation: 150, handle: ".drag-handle",
+      ghostClass: "sortable-ghost",
+      onEnd: async (evt) => {
+        const ids = Array.from(grid.children).map(el => el.dataset.id);
+        await asmFetch("/world/reorder", {
+          method: "POST", body: { type: "{{ type_ }}", order: ids }
+        });
+        showToast("Reordered.", "success", 1200);
+      }
+    });
+  }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}New Character{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('characters.list_view') }}">Characters</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">New</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>New Character</h1>
+    <div class="subtitle">Build a rich character profile</div>
+  </div>
+  <a href="{{ url_for('characters.list_view') }}" class="btn btn-ghost">← Back</a>
+</div>
+
+<form id="charForm" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="card-grid cols-3 mb-4">
+    <div class="form-row">
+      <label class="form-label">Name <span class="text-danger">*</span></label>
+      <input type="text" name="name" required maxlength="200" class="form-input" placeholder="Full name">
+    </div>
+    <div class="form-row">
+      <label class="form-label">Role</label>
+      <select name="role" class="form-select">
+        <option value="protagonist">Protagonist</option>
+        <option value="antagonist">Antagonist</option>
+        <option value="supporting" selected>Supporting</option>
+        <option value="minor">Minor</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Avatar color</label>
+      <input type="color" name="avatar_color" class="form-input" value="#6366f1" style="height: 38px">
+    </div>
+  </div>
+
+  <div class="card-grid cols-3 mb-4">
+    <div class="form-row">
+      <label class="form-label">Age</label>
+      <input type="text" name="age" class="form-input" placeholder="e.g., 35, 'Centuries old'">
+    </div>
+    <div class="form-row">
+      <label class="form-label">Gender</label>
+      <select name="gender" class="form-select">
+        <option value="">—</option>
+        <option>Male</option><option>Female</option>
+        <option>Non-binary</option><option>Unknown</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Aliases (comma-separated)</label>
+      <input type="text" name="aliases" class="form-input" placeholder="Nick, The Wolf">
+    </div>
+  </div>
+
+  <div class="form-row">
+    <label class="form-label">Physical description</label>
+    <textarea name="physical" class="form-textarea" rows="3"
+              placeholder="Height, build, hair, eyes, distinguishing marks, clothing style…"></textarea>
+  </div>
+  <div class="form-row">
+    <label class="form-label">Psychology</label>
+    <textarea name="psychology" class="form-textarea" rows="3"
+              placeholder="Personality, traits, fears, motivations, strengths, weaknesses…"></textarea>
+  </div>
+  <div class="form-row">
+    <label class="form-label">Background</label>
+    <textarea name="background" class="form-textarea" rows="3"
+              placeholder="Origin, education, key events, family…"></textarea>
+  </div>
+  <div class="form-row">
+    <label class="form-label">Philosophy</label>
+    <textarea name="philosophy" class="form-textarea" rows="3"
+              placeholder="Beliefs, values, moral code…"></textarea>
+  </div>
+  <div class="form-row">
+    <label class="form-label">Notable quotes</label>
+    <div id="quotesContainer">
+      <input type="text" name="quotes" class="form-input mb-2" placeholder="A quote by this character">
+    </div>
+    <button type="button" class="btn btn-sm" onclick="addQuote()">+ Add quote</button>
+  </div>
+  <div class="form-row">
+    <label class="form-label">Story role</label>
+    <textarea name="story_role" class="form-textarea" rows="2"
+              placeholder="Function in the story, key decisions…"></textarea>
+  </div>
+  <div class="form-row">
+    <label class="form-label">Voice & Dialogue style</label>
+    <textarea name="voice" class="form-textarea" rows="2"
+              placeholder="Dialect, vocabulary, verbal tics…"></textarea>
+  </div>
+  <div class="form-row">
+    <label class="form-label">Notes</label>
+    <textarea name="notes" class="form-textarea" rows="3"></textarea>
+  </div>
+
+  <div class="flex justify-end gap-2">
+    <a href="{{ url_for('characters.list_view') }}" class="btn">Cancel</a>
+    <button type="submit" class="btn btn-primary">Save Character</button>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById("charForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const res = await fetch(e.target.action, {
+    method: "POST",
+    headers: { "X-CSRFToken": getCsrfToken() },
+    body: fd
+  });
+  let data;
+  try { data = await res.json(); }
+  catch { data = { ok: false, error: "Server returned an error. Check if CSRF token is valid." }; }
+  if (data.ok) {
+    showToast("Character created.", "success");
+    if (data.url) setTimeout(() => window.location.href = data.url, 500);
+  } else {
+    showToast(data.error || "Save failed", "error");
+  }
+});
+</script>
+{% endblock %}

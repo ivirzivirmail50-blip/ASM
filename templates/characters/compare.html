@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Compare Characters{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('characters.list_view') }}">Characters</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Compare</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Compare Characters</h1>
+    <div class="subtitle">Side-by-side attribute comparison</div>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <form method="get" class="flex items-center gap-3 flex-wrap">
+    <select name="ch1" class="form-select" style="width: 280px">
+      <option value="">— Character A —</option>
+      {% for c in all_chars %}
+      <option value="{{ c.id }}" {{ 'selected' if ch1 and ch1.id == c.id }}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+    <span class="text-mute">vs</span>
+    <select name="ch2" class="form-select" style="width: 280px">
+      <option value="">— Character B —</option>
+      {% for c in all_chars %}
+      <option value="{{ c.id }}" {{ 'selected' if ch2 and ch2.id == c.id }}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn btn-primary">Compare</button>
+  </form>
+</div>
+
+{% if ch1 and ch2 %}
+<div class="card">
+  <div class="card-grid cols-2">
+    <div>
+      <div class="flex items-center gap-3 mb-3">
+        <span class="avatar avatar-lg" style="background: {{ ch1.avatar_color }}">{{ ch1.name[:1]|upper }}</span>
+        <div>
+          <h2 style="margin:0">{{ ch1.name }}</h2>
+          <span class="badge {{ ch1.role }}">{{ ch1.role }}</span>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="flex items-center gap-3 mb-3">
+        <span class="avatar avatar-lg" style="background: {{ ch2.avatar_color }}">{{ ch2.name[:1]|upper }}</span>
+        <div>
+          <h2 style="margin:0">{{ ch2.name }}</h2>
+          <span class="badge {{ ch2.role }}">{{ ch2.role }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <table class="table mt-4">
+    <thead>
+      <tr><th style="width: 20%">Attribute</th><th>{{ ch1.name }}</th><th>{{ ch2.name }}</th></tr>
+    </thead>
+    <tbody>
+      {% for label, key, val1, val2 in [
+        ('Age', 'age', ch1.age, ch2.age),
+        ('Gender', 'gender', ch1.gender, ch2.gender),
+        ('Physical', 'physical', ch1.physical, ch2.physical),
+        ('Psychology', 'psychology', ch1.psychology, ch1.psychology if false else ch2.psychology),
+        ('Background', 'background', ch1.background, ch2.background),
+        ('Philosophy', 'philosophy', ch1.philosophy, ch2.philosophy),
+        ('Story Role', 'story_role', ch1.story_role, ch2.story_role),
+        ('Voice', 'voice', ch1.voice, ch2.voice),
+        ('Notes', 'notes', ch1.notes, ch2.notes),
+      ] %}
+      <tr>
+        <td><strong>{{ label }}</strong></td>
+        <td class="text-sm" style="color: {{ 'var(--accent-hover)' if val1 != val2 and val1 and val2 else 'var(--text-dim)' }}">{{ val1 or '—' }}</td>
+        <td class="text-sm" style="color: {{ 'var(--accent-hover)' if val1 != val2 and val1 and val2 else 'var(--text-dim)' }}">{{ val2 or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="mt-4 flex gap-2 justify-end">
+    <a href="{{ url_for('characters.export', character_id=ch1.id, fmt='txt') }}" class="btn btn-sm">↧ Export A (TXT)</a>
+    <a href="{{ url_for('characters.export', character_id=ch2.id, fmt='txt') }}" class="btn btn-sm">↧ Export B (TXT)</a>
+  </div>
+</div>
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">⇄</div>
+  <h3>Select two characters to compare</h3>
+</div>
+{% endif %}
+{% endblock %}

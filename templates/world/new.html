@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}New World Entry{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('world.index') }}">World Library</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">New</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>New World Entry</h1>
+    <div class="subtitle">Build a reference entry for your world</div>
+  </div>
+  <a href="{{ url_for('world.index') }}" class="btn btn-ghost">← Back</a>
+</div>
+
+<form id="worldForm" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="card-grid cols-3 mb-4">
+    <div class="form-row">
+      <label class="form-label">Type <span class="text-danger">*</span></label>
+      <select name="type" class="form-select" id="entryType">
+        {% for t in types %}
+        <option value="{{ t }}">{{ t|replace('_',' ')|title }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-row" style="grid-column: span 2">
+      <label class="form-label">Name <span class="text-danger">*</span></label>
+      <input type="text" name="name" required maxlength="300" class="form-input">
+    </div>
+  </div>
+  <div class="form-row">
+    <label class="form-label">Category</label>
+    <input type="text" name="category" class="form-input" placeholder="User-defined category">
+  </div>
+  <div class="form-row">
+    <label class="form-label">Short description</label>
+    <input type="text" name="description" class="form-input">
+  </div>
+
+  <!-- Type-specific metadata fields -->
+  <div class="form-row">
+    <label class="form-label">Type-specific metadata</label>
+    <div id="metadataFields" class="card-grid cols-3" style="background: var(--bg-elev-2); padding: 1rem; border-radius: 8px; border: 1px solid var(--border)"></div>
+  </div>
+
+  <div class="form-row">
+    <label class="form-label">Full content</label>
+    <textarea name="content" class="form-textarea" rows="8"></textarea>
+  </div>
+  <div class="form-row">
+    <label class="form-label">Notes (scratchpad)</label>
+    <textarea name="notes" class="form-textarea" rows="3"></textarea>
+  </div>
+
+  <div class="flex justify-end gap-2">
+    <a href="{{ url_for('world.index') }}" class="btn">Cancel</a>
+    <button type="submit" class="btn btn-primary">Save Entry</button>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const FIELDS = {{ metadata_fields | tojson }};
+
+function renderMetadataFields(type) {
+  const container = document.getElementById("metadataFields");
+  const fields = FIELDS[type] || [];
+  container.innerHTML = fields.map(f => `
+    <div class="form-row" style="margin:0">
+      <label class="form-label" style="font-size: 0.75rem">${f.replace(/_/g, ' ')}</label>
+      <input type="text" name="metadata_${f}" class="form-input" style="font-size: 0.85rem">
+    </div>
+  `).join("") || '<div class="text-mute text-sm">No type-specific fields.</div>';
+}
+
+
+renderMetadataFields(document.getElementById("entryType").value);
+document.getElementById("entryType").addEventListener("change", (e) => renderMetadataFields(e.target.value));
+
+
+document.getElementById("worldForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const res = await fetch(e.target.action, {
+    method: "POST",
+    headers: { "X-CSRFToken": getCsrfToken() },
+    body: fd
+  });
+  let data;
+  try { data = await res.json(); }
+  catch { data = { ok: false, error: "Server error" }; }
+  if (data.ok) {
+    showToast("Entry created.", "success");
+    if (data.url) setTimeout(() => window.location.href = data.url, 500);
+  } else {
+    showToast(data.error || "Save failed", "error");
+  }
+});
+</script>
+{% endblock %}

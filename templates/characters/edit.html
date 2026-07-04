@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}Edit: {{ character.name }}{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('characters.list_view') }}">Characters</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('characters.detail', character_id=character.id) }}">{{ character.name }}</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Edit</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Edit Character</h1>
+    <div class="subtitle">{{ character.name }}</div>
+  </div>
+  <a href="{{ url_for('characters.detail', character_id=character.id) }}" class="btn btn-ghost">← Cancel</a>
+</div>
+
+<form id="charForm" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="card-grid cols-3 mb-4">
+    <div class="form-row">
+      <label class="form-label">Name <span class="text-danger">*</span></label>
+      <input type="text" name="name" required maxlength="200" value="{{ character.name }}" class="form-input">
+    </div>
+    <div class="form-row">
+      <label class="form-label">Role</label>
+      <select name="role" class="form-select">
+        <option value="protagonist" {{ 'selected' if character.role == 'protagonist' }}>Protagonist</option>
+        <option value="antagonist" {{ 'selected' if character.role == 'antagonist' }}>Antagonist</option>
+        <option value="supporting" {{ 'selected' if character.role == 'supporting' }}>Supporting</option>
+        <option value="minor" {{ 'selected' if character.role == 'minor' }}>Minor</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Avatar color</label>
+      <input type="color" name="avatar_color" value="{{ character.avatar_color or '#6366f1' }}" class="form-input" style="height: 38px">
+    </div>
+  </div>
+
+  <div class="card-grid cols-3 mb-4">
+    <div class="form-row">
+      <label class="form-label">Age</label>
+      <input type="text" name="age" value="{{ character.age or '' }}" class="form-input">
+    </div>
+    <div class="form-row">
+      <label class="form-label">Gender</label>
+      <select name="gender" class="form-select">
+        <option value="">—</option>
+        <option {{ 'selected' if character.gender == 'Male' }}>Male</option>
+        <option {{ 'selected' if character.gender == 'Female' }}>Female</option>
+        <option {{ 'selected' if character.gender == 'Non-binary' }}>Non-binary</option>
+        <option {{ 'selected' if character.gender == 'Unknown' }}>Unknown</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Aliases (comma-separated)</label>
+      <input type="text" name="aliases" value="{{ aliases | join(', ') }}" class="form-input">
+    </div>
+  </div>
+
+  <div class="form-row">
+    <label class="form-label">Physical</label>
+    <textarea name="physical" class="form-textarea" rows="3">{{ character.physical or '' }}</textarea>
+  </div>
+  <div class="form-row">
+    <label class="form-label">Psychology</label>
+    <textarea name="psychology" class="form-textarea" rows="3">{{ character.psychology or '' }}</textarea>
+  </div>
+  <div class="form-row">
+    <label class="form-label">Background</label>
+    <textarea name="background" class="form-textarea" rows="3">{{ character.background or '' }}</textarea>
+  </div>
+  <div class="form-row">
+    <label class="form-label">Philosophy</label>
+    <textarea name="philosophy" class="form-textarea" rows="3">{{ character.philosophy or '' }}</textarea>
+  </div>
+  <div class="form-row">
+    <label class="form-label">Notable quotes</label>
+    <div id="quotesContainer">
+      {% for q in quotes %}
+      <input type="text" name="quotes" value="{{ q }}" class="form-input mb-2">
+      {% else %}
+      <input type="text" name="quotes" class="form-input mb-2" placeholder="A quote">
+      {% endfor %}
+    </div>
+    <button type="button" class="btn btn-sm" onclick="addQuote()">+ Add quote</button>
+  </div>
+  <div class="form-row">
+    <label class="form-label">Story role</label>
+    <textarea name="story_role" class="form-textarea" rows="2">{{ character.story_role or '' }}</textarea>
+  </div>
+  <div class="form-row">
+    <label class="form-label">Voice & Dialogue</label>
+    <textarea name="voice" class="form-textarea" rows="2">{{ character.voice or '' }}</textarea>
+  </div>
+  <div class="form-row">
+    <label class="form-label">Notes</label>
+    <textarea name="notes" class="form-textarea" rows="3">{{ character.notes or '' }}</textarea>
+  </div>
+
+  <div class="flex justify-end gap-2">
+    <a href="{{ url_for('characters.detail', character_id=character.id) }}" class="btn">Cancel</a>
+    <button type="submit" class="btn btn-primary">Save</button>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function addQuote() {
+
+  const c = document.getElementById("quotesContainer");
+  const i = document.createElement("input");
+  i.type = "text"; i.name = "quotes"; i.className = "form-input mb-2";
+  c.appendChild(i); i.focus();
+}
+
+document.getElementById("charForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const res = await fetch(e.target.action, {
+    method: "POST",
+    headers: { "X-CSRFToken": getCsrfToken() },
+    body: fd
+  });
+  let data;
+  try { data = await res.json(); }
+  catch { data = { ok: false, error: "Server error" }; }
+  if (data.ok) {
+    showToast("Saved.", "success");
+    if (data.url) setTimeout(() => window.location.href = data.url, 500);
+  } else {
+    showToast(data.error || "Save failed", "error");
+  }
+});
+</script>
+{% endblock %}

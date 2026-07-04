@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Timeline: {{ character.name }}{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('characters.list_view') }}">Characters</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('characters.detail', character_id=character.id) }}">{{ character.name }}</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Timeline</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="flex items-center gap-3">
+    <span class="avatar avatar-lg" style="background: {{ character.avatar_color }}">{{ character.name[:1]|upper }}</span>
+    <div>
+      <h1>{{ character.name }} — Timeline</h1>
+      <div class="subtitle">{{ appearances|length }} appearance{{ 's' if appearances|length != 1 }} across chapters</div>
+    </div>
+  </div>
+  <div class="actions">
+    <a href="{{ url_for('characters.detail', character_id=character.id) }}" class="btn btn-ghost">← Profile</a>
+    <a href="{{ url_for('characters.graph') }}" class="btn">⦿ Relationship Graph</a>
+  </div>
+</div>
+
+<div class="card-grid cols-3">
+  <!-- Timeline -->
+  <div style="grid-column: span 2">
+    {% if appearances %}
+    <div class="card">
+      <div class="card-title mb-4">Chapter Appearances</div>
+      <div class="timeline">
+        {% for ch in appearances %}
+        <div class="timeline-entry character_moment">
+          <div class="flex items-center gap-3 mb-1">
+            <span class="badge no-dot" style="font-size: 0.65rem">Chapter {{ ch.sort_order }}</span>
+            <a href="{{ url_for('chapters.detail', chapter_id=ch.id) }}" style="color: var(--text); text-decoration: none; font-weight: 600">
+              {{ ch.title }}
+            </a>
+          </div>
+          {% if ch.synopsis %}
+          <div class="text-sm text-dim" style="max-width: 700px">{{ ch.synopsis }}</div>
+          {% endif %}
+          <div class="text-xs text-mute mt-1">{{ ch.word_count }} words · {{ ch.status }}</div>
+          {% if arc_stage_map.get(ch.id) %}
+          <div class="flex flex-wrap gap-2 mt-2">
+            {% for marker in arc_stage_map[ch.id] %}
+            <span class="badge no-dot {{ 'success' if marker.status == 'completed' else ('warning' if marker.status == 'in_progress' else '') }}"
+                  style="font-size: 0.65rem">
+              {{ marker.arc_name }} → {{ marker.stage_name }}
+            </span>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% else %}
+    <div class="card">
+      <div class="empty-state">
+        <div class="empty-icon">⌗</div>
+        <h3>No appearances yet</h3>
+        <p>Link this character to chapters from the chapter edit page.</p>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Arcs sidebar -->
+  <div class="flex flex-col gap-4">
+    <div class="card">
+      <div class="card-title mb-3">Character Arcs</div>
+      {% if arcs %}
+      {% for arc in arcs %}
+      {% set stages = arc.stages | from_json %}
+      <div class="mb-4" style="padding-bottom: 1rem; border-bottom: 1px solid var(--border)">
+        <div style="font-weight: 600">{{ arc.arc_name }}</div>
+        {% if arc.description %}<div class="text-sm text-dim mt-1">{{ arc.description }}</div>{% endif %}
+        <div class="flex gap-2 mt-3">
+          {% for s in stages %}
+          <div class="card" style="flex: 1; padding: 0.5rem; background: var(--bg-elev-2); min-width: 80px">
+            <div class="flex items-center justify-between mb-1">
+              <strong style="font-size: 0.75rem">{{ s.name }}</strong>
+              <span class="badge no-dot {{ 'success' if s.status == 'completed' else ('warning' if s.status == 'in_progress' else '') }}"
+                    style="font-size: 0.6rem; padding: 0.1rem 0.35rem">{{ s.status[:4] if s.status else 'plan' }}</span>
+            </div>
+            {% if s.description %}<div class="text-xs text-mute" style="line-height: 1.3">{{ s.description[:60] }}{% if s.description|length > 60 %}…{% endif %}</div>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+      {% else %}
+      <div class="text-mute text-sm">No arcs defined.</div>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <div class="card-title mb-2">Quick Stats</div>
+      <div class="text-sm">
+        <div class="flex justify-between mb-2"><span class="text-mute">Appearances</span><strong>{{ appearances|length }}</strong></div>
+        <div class="flex justify-between mb-2"><span class="text-mute">Arcs</span><strong>{{ arcs|length }}</strong></div>
+        {% if appearances %}
+        <div class="flex justify-between mb-2"><span class="text-mute">First seen</span><span>Ch. {{ appearances[0].sort_order }}</span></div>
+        <div class="flex justify-between"><span class="text-mute">Last seen</span><span>Ch. {{ appearances[-1].sort_order }}</span></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

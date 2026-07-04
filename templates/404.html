@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}404 — Not Found{% endblock %}
+{% block content %}
+<div class="empty-state" style="padding: 6rem 1rem">
+  <div class="empty-icon" style="font-size: 4rem; opacity: 0.3">404</div>
+  <h1 style="margin: 1rem 0 0.5rem">Page not found</h1>
+  <p>{{ path }} doesn't exist.</p>
+  <a href="{{ url_for('dashboard.index') }}" class="btn btn-primary mt-3">← Back to Dashboard</a>
+</div>
+{% endblock %}

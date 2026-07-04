@@ -1,0 +1,49 @@
+{#
+  Reusable progress bar component.
+  Usage (linear):
+    {% set progress_value = 75 %}
+    {% set progress_max = 100 %}
+    {% set progress_variant = "success" %}
+    {% set progress_label = "75%" %}
+    {% set progress_type = "linear" %}
+    {% include "components/progress_bar.html" %}
+
+  Usage (circular/ring):
+    {% set progress_value = 350 %}
+    {% set progress_max = 500 %}
+    {% set progress_type = "circular" %}
+    {% set progress_label_top = "350" %}
+    {% set progress_label_bottom = "/ 500" %}
+    {% include "components/progress_bar.html" %}
+
+  Variants: accent, success, warning, danger, warm
+#}
+{% if progress_type|default('linear') == 'circular' %}
+<div class="ring-chart" style="width: {{ progress_size|default(140) }}px; height: {{ progress_size|default(140) }}px">
+  {% set radius = (progress_size|default(140) / 2) - 10 %}
+  {% set circumference = 3.14159 * 2 * radius %}
+  {% set pct = (progress_value / (progress_max or 1)) %}
+  <svg width="{{ progress_size|default(140) }}" height="{{ progress_size|default(140) }}" viewBox="0 0 {{ progress_size|default(140) }} {{ progress_size|default(140) }}">
+    <circle cx="{{ progress_size|default(140) / 2 }}" cy="{{ progress_size|default(140) / 2 }}" r="{{ radius }}"
+            stroke-width="10" fill="none" class="ring-bg"/>
+    <circle cx="{{ progress_size|default(140) / 2 }}" cy="{{ progress_size|default(140) / 2 }}" r="{{ radius }}"
+            stroke-width="10" fill="none"
+            class="ring-fg {{ 'ring-' ~ progress_variant|default('accent') }}"
+            stroke-linecap="round"
+            stroke-dasharray="{{ circumference }}"
+            stroke-dashoffset="{{ circumference * (1 - pct) }}"/>
+  </svg>
+  <div class="ring-label">
+    <span class="ring-value">{{ progress_label_top|default(progress_value) }}</span>
+    <span class="ring-sub">{{ progress_label_bottom|default('') }}</span>
+  </div>
+</div>
+{% else %}
+<div class="progress" style="height: {{ progress_height|default('8px') }}">
+  <div class="progress-bar {{ progress_variant|default('accent') }}"
+       style="width: {{ [(progress_value / (progress_max or 1) * 100)|int, 100]|min }}%"></div>
+</div>
+{% if progress_label %}
+<div class="text-xs text-mute mt-1">{{ progress_label }}</div>
+{% endif %}
+{% endif %}

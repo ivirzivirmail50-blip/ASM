@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Relationship Graph{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('characters.list_view') }}">Characters</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Relationship Graph</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Relationship Graph</h1>
+    <div class="subtitle">Interactive character relationship network</div>
+  </div>
+  <div class="actions">
+    <button class="btn" onclick="enterAddMode()">+ Add Relationship</button>
+    <button class="btn" onclick="resetGraphLayout()">↺ Reset Layout</button>
+    <button class="btn" onclick="togglePhysics()">⏸ Pause Physics</button>
+    <a href="{{ url_for('characters.new') }}" class="btn btn-primary">+ New Character</a>
+  </div>
+</div>
+
+<div class="flex gap-2 mb-4 flex-wrap">
+  <div class="filter-pills">
+    <button class="pill active" data-filter="all">All</button>
+    <button class="pill" data-filter="married_to">Married</button>
+    <button class="pill" data-filter="parent_of">Parent</button>
+    <button class="pill" data-filter="friend_of">Friend</button>
+    <button class="pill" data-filter="rival_of">Rival</button>
+    <button class="pill" data-filter="enemy_of">Enemy</button>
+    <button class="pill" data-filter="mentors">Mentor</button>
+    <button class="pill" data-filter="loves">Love</button>
+    <button class="pill" data-filter="serves">Serves</button>
+    <button class="pill" data-filter="betrayed_by">Betrayed</button>
+  </div>
+</div>
+
+<div class="relative">
+  <div id="character-graph"></div>
+
+  <!-- Floating controls -->
+  <div class="graph-controls">
+    <button class="btn btn-ghost btn-icon" title="Zoom in" onclick="zoomGraph(0.2)">+</button>
+    <button class="btn btn-ghost btn-icon" title="Zoom out" onclick="zoomGraph(-0.2)">−</button>
+    <button class="btn btn-ghost btn-icon" title="Fit" onclick="fitGraph()">⊡</button>
+  </div>
+
+  <!-- Legend -->
+  <div class="graph-legend" id="graphLegend">
+    <div style="font-weight: 600; margin-bottom: 0.4rem; color: var(--text)">Groups</div>
+    {% if groups %}
+    {% for g in groups %}
+    <div class="graph-legend-item" data-group-id="{{ g.id }}" onclick="highlightGroup('{{ g.id }}')">
+      <span class="legend-swatch" style="background: {{ g.color }}"></span>
+      <span>{{ g.name }}</span>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="text-mute">No groups yet.</div>
+    {% endif %}
+    <div style="margin-top: 0.6rem; padding-top: 0.6rem; border-top: 1px solid var(--border)">
+      <div style="font-weight: 600; margin-bottom: 0.4rem; color: var(--text)">Edge Types</div>
+      <div class="graph-legend-item">
+        <span class="legend-swatch" style="background: #ec4899"></span><span>Love / Married</span>
+      </div>
+      <div class="graph-legend-item">
+        <span class="legend-swatch" style="background: #22c55e"></span><span>Parent / Mentor</span>
+      </div>
+      <div class="graph-legend-item">
+        <span class="legend-swatch" style="background: #3b82f6"></span><span>Friend / Serves</span>
+      </div>
+      <div class="graph-legend-item">
+        <span class="legend-swatch" style="background: #ef4444"></span><span>Rival / Enemy</span>
+      </div>
+      <div class="graph-legend-item">
+        <span class="legend-swatch" style="background: #f59e0b; opacity: 0.7"></span><span>Group member</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card mt-4">
+  <div class="card-title mb-3">How to use</div>
+  <div class="card-grid cols-3">
+    <div>
+      <div class="text-sm" style="color: var(--text); font-weight: 600; margin-bottom: 0.3rem">Navigation</div>
+      <div class="text-sm text-dim">• Click node → open character<br>• Drag node → reposition (saves)<br>• Drag background → pan<br>• Mouse wheel → zoom<br>• Double-click → reset view</div>
+    </div>
+    <div>
+      <div class="text-sm" style="color: var(--text); font-weight: 600; margin-bottom: 0.3rem">Editing</div>
+      <div class="text-sm text-dim">• Click edge → relationship details + delete<br>• "+ Add Relationship" → click 2 nodes<br>• Filter pills → show only specific types<br>• Click group → highlight members</div>
+    </div>
+    <div>
+      <div class="text-sm" style="color: var(--text); font-weight: 600; margin-bottom: 0.3rem">Tips</div>
+      <div class="text-sm text-dim">• Larger nodes = protagonist/antagonist<br>• Dashed lines = hostile relations<br>• Group nodes (ellipses) link members</div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/graph.js') }}"></script>
+{% endblock %}

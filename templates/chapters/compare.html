@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Compare Chapters{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('chapters.list_view') }}">Chapters</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Compare Two</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Compare Two Chapters</h1>
+    <div class="subtitle">Side-by-side diff of any two chapters</div>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <form method="get" class="flex items-center gap-3 flex-wrap">
+    <select name="ch1" class="form-select" style="width: 280px">
+      <option value="">— Chapter A —</option>
+      {% for c in all_chapters %}
+      <option value="{{ c.id }}" {{ 'selected' if ch1 and ch1.id == c.id }}>{{ c.title }} ({{ c.word_count }}w)</option>
+      {% endfor %}
+    </select>
+    <span class="text-mute">vs</span>
+    <select name="ch2" class="form-select" style="width: 280px">
+      <option value="">— Chapter B —</option>
+      {% for c in all_chapters %}
+      <option value="{{ c.id }}" {{ 'selected' if ch2 and ch2.id == c.id }}>{{ c.title }} ({{ c.word_count }}w)</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-primary">Compare</button>
+  </form>
+</div>
+
+{% if ch1 and ch2 %}
+<div class="card mb-4">
+  <div class="card-grid cols-2">
+    <div>
+      <div class="text-mute text-sm">Chapter A</div>
+      <div style="font-weight: 600">{{ ch1.title }}</div>
+      <div class="text-sm text-dim">{{ ch1.word_count }} words</div>
+    </div>
+    <div>
+      <div class="text-mute text-sm">Chapter B</div>
+      <div style="font-weight: 600">{{ ch2.title }}</div>
+      <div class="text-sm text-dim">{{ ch2.word_count }} words</div>
+    </div>
+  </div>
+  <div class="mt-3 flex gap-3 text-sm">
+    <span class="text-success">+{{ stats.added_lines }} added</span>
+    <span class="text-danger">−{{ stats.deleted_lines }} deleted</span>
+  </div>
+</div>
+
+<div class="diff-view">
+  {% for d in diff %}
+  <div class="diff-{{ d.op }}">
+    <span class="diff-sign">{{ {'eq': ' ', 'add': '+', 'del': '-'}[d.op] }}</span>
+    <span class="diff-text">{{ d.text }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">⇄</div>
+  <h3>Select two chapters to compare</h3>
+</div>
+{% endif %}
+{% endblock %}

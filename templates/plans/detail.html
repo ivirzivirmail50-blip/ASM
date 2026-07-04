@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+{% block title %}{{ plan.title }}{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('plans.board') }}">Plans</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">{{ plan.title }}</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="flex items-center gap-2 mb-1">
+      <span class="badge {{ plan.status }}">{{ plan.status|replace('_',' ')|title }}</span>
+      {% if plan.event_type %}<span class="badge no-dot">{{ plan.event_type|replace('_',' ') }}</span>{% endif %}
+      {% if plan.track %}<span class="badge no-dot">☰ {{ plan.track }}</span>{% endif %}
+    </div>
+    <h1>{{ plan.title }}</h1>
+    {% if plan.deadline %}<div class="subtitle">📅 Deadline: {{ plan.deadline }}</div>{% endif %}
+  </div>
+  <div class="actions">
+    <a href="{{ url_for('plans.edit', plan_id=plan.id) }}" class="btn">✎ Edit</a>
+    <button class="btn btn-danger" onclick="deletePlan()">🗑 Delete</button>
+  </div>
+</div>
+
+<div class="card-grid cols-3">
+  <div style="grid-column: span 2" class="flex flex-col gap-4">
+    {% if plan.description %}
+    <div class="card">
+      <div class="card-title">Description</div>
+      <div class="font-serif" style="line-height: 1.7; color: var(--text)">{{ plan.description }}</div>
+    </div>
+    {% endif %}
+
+    <!-- Subtasks -->
+    <div class="card">
+      <div class="flex items-center justify-between mb-3">
+        <div class="card-title" style="margin:0">Subtasks</div>
+        <div class="flex gap-2">
+          <input type="text" id="newSubtaskInput" placeholder="Add a subtask…"
+                 class="form-input" style="width: 280px">
+          <button class="btn btn-primary btn-sm" onclick="addSubtask()">+ Add</button>
+        </div>
+      </div>
+      <div id="subtaskList" class="flex flex-col gap-1">
+        {% for st in subtasks %}
+        <div class="flex items-center gap-2 subtask-row" data-id="{{ st.id }}">
+          <span class="drag-handle text-mute" style="font-size: 0.9rem">⠿</span>
+          <input type="checkbox" {{ 'checked' if st.is_completed }}
+                 onchange="toggleSubtask('{{ st.id }}')">
+          <span class="grow subtask-title {{ 'text-mute' if st.is_completed }}"
+                style="text-decoration: {{ 'line-through' if st.is_completed }}; cursor: text"
+                onclick="editSubtaskInline(this, '{{ st.id }}')">{{ st.title }}</span>
+          <button class="btn btn-ghost btn-icon btn-sm" onclick="deleteSubtask('{{ st.id }}')">×</button>
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding: 1rem">
+          <div class="text-mute text-sm">No subtasks yet.</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="flex flex-col gap-4">
+    <div class="card">
+      <div class="card-title mb-2">Metadata</div>
+      <div class="text-sm" style="color: var(--text-dim)">
+        <div class="flex justify-between mb-2"><span class="text-mute">Status</span><span class="badge {{ plan.status }}">{{ plan.status|replace('_',' ') }}</span></div>
+        {% if plan.story_date %}<div class="flex justify-between mb-2"><span class="text-mute">Story date</span><strong>{{ plan.story_date }}</strong></div>{% endif %}
+        {% if plan.deadline %}<div class="flex justify-between mb-2"><span class="text-mute">Deadline</span><strong>{{ plan.deadline }}</strong></div>{% endif %}
+        {% if plan.effort_estimate %}<div class="flex justify-between mb-2"><span class="text-mute">Effort est.</span><strong>{{ plan.effort_estimate }}w</strong></div>{% endif %}
+        <div class="flex justify-between mb-2"><span class="text-mute">Created</span><span>{{ plan.created_at.strftime('%Y-%m-%d') if plan.created_at else '-' }}</span></div>
+      </div>
+      <!-- Quick status change -->
+      <div class="mt-3">
+        <label class="form-label">Quick status</label>
+        <select class="form-select" onchange="quickStatus(this.value)">
+          {% for s in statuses %}
+          <option value="{{ s }}" {{ 'selected' if s == plan.status }}>{{ s|replace('_',' ')|title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    {% if linked_chars %}
+    <div class="card">
+      <div class="card-title mb-2">Characters involved</div>
+      <div class="flex flex-col gap-1">
+        {% for c in linked_chars %}
+        <a href="{{ url_for('characters.detail', character_id=c.id) }}"
+           class="flex items-center gap-2" style="padding: 0.3rem; text-decoration: none">
+          <span class="avatar avatar-sm" style="background: {{ c.avatar_color }}">{{ c.name[:1]|upper }}</span>
+          <span style="color: var(--text)">{{ c.name }}</span>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if tags %}
+    <div class="card">
+      <div class="card-title mb-2">Tags</div>
+      <div class="flex flex-wrap gap-1">
+        {% for t in tags %}<span class="badge no-dot">{{ t }}</span>{% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/outline_dnd.js') }}"></script>
+<script>
+async function addSubtask() {
+  const input = document.getElementById("newSubtaskInput");
+  const title = input.value.trim();
+  if (!title) return;
+  const { data } = await asmFetch(`/plans/{{ plan.id }}/subtasks`, {
+    method: "POST", body: { title }
+  });
+  if (data.ok) {
+    showToast("Subtask added.", "success", 1200);
+    setTimeout(() => location.reload(), 400);
+  } else {
+    showToast(data.error || "Failed", "error");
+  }
+}
+
+async function toggleSubtask(id) {
+  const { data } = await asmFetch(`/plans/subtasks/${id}/toggle`, { method: "POST" });
+  if (data.ok) {
+    // Update visual state without reload
+    const row = document.querySelector(`[data-id="${id}"]`);
+    const span = row.querySelector("span.grow");
+    const cb = row.querySelector("input[type=checkbox]");
+    if (data.completed) {
+      span.classList.add("text-mute");
+      span.style.textDecoration = "line-through";
+    } else {
+      span.classList.remove("text-mute");
+      span.style.textDecoration = "";
+    }
+  } else {
+    showToast(data.error || "Failed", "error");
+  }
+}
+
+async function deleteSubtask(id) {
+  const ok = await confirmDialog("Delete this subtask?", { danger: true, okLabel: "Delete" });
+  if (!ok) return;
+  const { data } = await asmFetch(`/plans/subtasks/${id}/delete`, { method: "POST" });
+  if (data.ok) {
+    document.querySelector(`[data-id="${id}"]`).remove();
+    showToast("Deleted.", "success", 1200);
+  }
+}
+
+function editSubtaskInline(spanEl, subtaskId) {
+  const currentText = spanEl.textContent;
+  const input = document.createElement("input");
+  input.type = "text";
+  input.value = currentText;
+  input.className = "form-input";
+  input.style.flex = "1";
+  spanEl.replaceWith(input);
+  input.focus();
+  input.select();
+  let saved = false;
+  async function save() {
+    if (saved) return;
+    saved = true;
+    const newTitle = input.value.trim();
+    if (!newTitle || newTitle === currentText) {
+      // Revert
+      input.replaceWith(spanEl);
+      return;
+    }
+    const { data } = await asmFetch(`/plans/subtasks/${subtaskId}/edit`, {
+      method: "POST", body: { title: newTitle }
+    });
+    if (data.ok) {
+      spanEl.textContent = newTitle;
+      input.replaceWith(spanEl);
+      showToast("Subtask updated.", "success", 1200);
+    } else {
+      input.replaceWith(spanEl);
+      showToast(data.error || "Failed", "error");
+    }
+  }
+  input.addEventListener("blur", save);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+    if (e.key === "Escape") { saved = true; input.replaceWith(spanEl); }
+  });
+}
+
+async function quickStatus(newStatus) {
+  const { data } = await asmFetch(`/plans/{{ plan.id }}/status`, {
+    method: "POST", body: { status: newStatus }
+  });
+  if (data.ok) showToast(`Status → ${newStatus}`, "success", 1500);
+  else showToast(data.error || "Failed", "error");
+}
+
+async function deletePlan() {
+  const ok = await confirmDialog("Delete this plan item?", { danger: true, okLabel: "Delete" });
+  if (!ok) return;
+  const { data } = await asmFetch(`/plans/{{ plan.id }}/delete`, { method: "POST" });
+  if (data.ok) {
+    showToast("Plan item deleted.", "success");
+    setTimeout(() => window.location.href = data.url, 500);
+  }
+}
+
+// Subtask drag-reorder
+document.addEventListener("DOMContentLoaded", () => {
+  const list = document.getElementById("subtaskList");
+  if (list && typeof Sortable !== "undefined") {
+    Sortable.create(list, {
+      animation: 150, handle: ".drag-handle",
+      ghostClass: "sortable-ghost",
+      onEnd: async (evt) => {
+        const ids = Array.from(list.children).map(el => el.dataset.id);
+        await asmFetch(`/plans/{{ plan.id }}/subtasks/reorder`, {
+          method: "POST", body: { order: ids }
+        });
+      }
+    });
+  }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Import Project{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('settings.index') }}">Settings</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Import JSON</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Import Project from JSON</h1>
+    <div class="subtitle">Restore a previously exported project file</div>
+  </div>
+  <a href="{{ url_for('settings.index') }}" class="btn btn-ghost">← Back to Settings</a>
+</div>
+
+<div class="card" style="border-left: 3px solid var(--warning)">
+  <div class="card-title">⚠ Import behavior</div>
+  <ul class="text-sm" style="color: var(--text-dim); padding-left: 1.5rem">
+    <li>Imported entities are <strong>merged</strong> with existing data — entities with matching IDs are skipped (no overwrite).</li>
+    <li>Settings are updated from the JSON (existing settings are overwritten).</li>
+    <li>The <code>ai.api_key</code> is <strong>not</strong> imported if empty in the file (your current key is preserved).</li>
+    <li>Import does <strong>not</strong> delete existing entities — use this to combine projects or restore from backup.</li>
+  </ul>
+</div>
+
+<div class="card mt-4">
+  <div id="dropzone"
+       style="border: 2px dashed var(--border-strong); border-radius: 12px;
+              padding: 3rem 1rem; text-align: center; cursor: pointer;
+              transition: all 0.2s ease;">
+    <div style="font-size: 3rem; opacity: 0.4">↥</div>
+    <div style="font-weight: 600; margin-top: 0.5rem">Drop a JSON file here or click to browse</div>
+    <div class="text-mute text-sm mt-2">Must be a JSON file exported from ASM</div>
+    <input type="file" id="fileInput" style="display: none" accept=".json,application/json">
+  </div>
+
+  <form id="importForm" style="display: none" class="mt-4">
+    <div id="filePreview" class="card mb-4" style="background: var(--bg-elev-2)"></div>
+    <div class="flex justify-end gap-2">
+      <button type="button" class="btn" onclick="resetUpload()">Cancel</button>
+      <button type="submit" class="btn btn-primary">↥ Import</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const drop = document.getElementById("dropzone");
+const input = document.getElementById("fileInput");
+const form = document.getElementById("importForm");
+const preview = document.getElementById("filePreview");
+
+drop.addEventListener("click", () => input.click());
+drop.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  drop.style.background = "var(--accent-light)";
+  drop.style.borderColor = "var(--accent)";
+});
+drop.addEventListener("dragleave", () => {
+  drop.style.background = "";
+  drop.style.borderColor = "";
+});
+drop.addEventListener("drop", (e) => {
+  e.preventDefault();
+  drop.style.background = "";
+  drop.style.borderColor = "";
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+input.addEventListener("change", () => {
+  if (input.files.length) handleFile(input.files[0]);
+});
+
+function handleFile(f) {
+  if (!f.name.endsWith(".json")) {
+    showToast("File must be .json", "error");
+    return;
+  }
+  if (f.size > 50 * 1024 * 1024) {
+    showToast("File too large (max 50 MB).", "error");
+    return;
+  }
+  preview.innerHTML = `
+    <div class="flex items-center gap-3">
+      <div style="font-size: 2rem">📄</div>
+      <div class="grow">
+        <div style="font-weight: 600">${escapeHtml(f.name)}</div>
+        <div class="text-sm text-mute">${(f.size / 1024).toFixed(1)} KB · JSON</div>
+      </div>
+    </div>
+  `;
+  form.style.display = "block";
+  form._file = f;
+}
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const fd = new FormData();
+  fd.append("file", form._file, form._file.name);
+  showToast("Importing…", "info", 0);
+  const res = await fetch("/settings/import-json", {
+    method: "POST",
+    headers: { "X-CSRFToken": getCsrfToken() },
+    body: fd
+  });
+  let data;
+  try { data = await res.json(); }
+  catch { data = { ok: false, error: "Invalid response" }; }
+  if (data.ok) {
+    const counts = Object.entries(data).filter(([k]) => k !== "ok").map(([k, v]) => `${k}: ${v}`).join(", ");
+    showToast(`Imported: ${counts}`, "success", 5000);
+    setTimeout(() => window.location.href = "/", 1500);
+  } else {
+    showToast(data.error || "Import failed", "error", 5000);
+  }
+});
+
+function resetUpload() {
+  form.style.display = "none";
+  form._file = null;
+  input.value = "";
+}
+</script>
+{% endblock %}

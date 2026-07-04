@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block title %}Search{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Search</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Full-Text Search</h1>
+    <div class="subtitle">FTS5 across chapters, characters, world entries</div>
+  </div>
+</div>
+
+<div class="card mb-6">
+  <form method="get" id="searchForm" class="flex flex-wrap gap-3 items-center">
+    <input type="text" name="q" id="searchInput" value="{{ q }}" placeholder="Search… (max 200 chars)"
+           maxlength="200" autofocus class="form-input" style="width: 360px">
+    <select name="module" class="form-select" style="width: 180px">
+      <option value="all" {{ 'selected' if module == 'all' }}>All modules</option>
+      <option value="chapters" {{ 'selected' if module == 'chapters' }}>Chapters</option>
+      <option value="characters" {{ 'selected' if module == 'characters' }}>Characters</option>
+      <option value="world" {{ 'selected' if module == 'world' }}>World entries</option>
+    </select>
+    <label class="flex items-center gap-1 text-sm">
+      <input type="checkbox" name="case" value="1" {{ 'checked' if case_sensitive }}>
+      Case-sensitive
+    </label>
+    <label class="flex items-center gap-1 text-sm">
+      <input type="checkbox" name="regex" value="1" {{ 'checked' if regex }}>
+      Regex
+    </label>
+    <button type="submit" class="btn btn-primary">Search</button>
+  </form>
+  {% if case_sensitive or regex %}
+  <div class="text-xs text-mute mt-2">
+    {% if case_sensitive %}Case-sensitive mode enabled (FTS5 fallback to LIKE/GLOB).{% endif %}
+    {% if regex %} Regex post-filter active — invalid patterns return no results.{% endif %}
+  </div>
+  {% endif %}
+</div>
+
+<!-- Recent searches -->
+<div id="recentSearches" class="card mb-6" style="display: none">
+  <div class="flex items-center justify-between mb-2">
+    <div class="card-title" style="margin: 0">Recent searches</div>
+    <button class="btn btn-ghost btn-sm" onclick="clearRecentSearches()">Clear</button>
+  </div>
+  <div id="recentSearchList" class="flex flex-wrap gap-2"></div>
+</div>
+
+{% if q %}
+<div class="text-mute text-sm mb-3 flex items-center gap-3 flex-wrap">
+  <span>
+    Found: {{ counts.chapters }} chapter{{ 's' if counts.chapters != 1 }} ·
+    {{ counts.characters }} character{{ 's' if counts.characters != 1 }} ·
+    {{ counts.world }} world entr{{ 'ies' if counts.world != 1 else 'y' }}
+  </span>
+  {% if has_prev or has_next %}
+  <span class="text-mute">·</span>
+  <span>Page {{ page }} ({{ per_page }}/module)</span>
+  {% endif %}
+</div>
+
+<div class="card-grid cols-3">
+  {% if module in ['all', 'chapters'] %}
+  <div class="card">
+    <div class="card-title mb-2">Chapters ({{ counts.chapters }})</div>
+    {% for r in results.chapters %}
+    <a href="{{ url_for('chapters.detail', chapter_id=r.id) }}" class="search-result block" style="text-decoration: none">
+      <div class="result-title">{{ r.title }}</div>
+      <div class="result-snippet">{{ r.snippet|safe }}</div>
+    </a>
+    {% else %}
+    <div class="text-mute text-sm">No matches.</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if module in ['all', 'characters'] %}
+  <div class="card">
+    <div class="card-title mb-2">Characters ({{ counts.characters }})</div>
+    {% for r in results.characters %}
+    <a href="{{ url_for('characters.detail', character_id=r.id) }}" class="search-result block" style="text-decoration: none">
+      <div class="result-title">{{ r.title }}</div>
+      <div class="result-snippet">{{ r.snippet|safe }}</div>
+    </a>
+    {% else %}
+    <div class="text-mute text-sm">No matches.</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if module in ['all', 'world'] %}
+  <div class="card">
+    <div class="card-title mb-2">World ({{ counts.world }})</div>
+    {% for r in results.world %}
+    <a href="{{ url_for('world.detail', entry_id=r.id) }}" class="search-result block" style="text-decoration: none">
+      <div class="result-title">{{ r.title }}</div>
+      <div class="result-snippet">{{ r.snippet|safe }}</div>
+    </a>
+    {% else %}
+    <div class="text-mute text-sm">No matches.</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">⌕</div>
+  <h3>Type a query to search</h3>
+  <p>Searches chapter titles/synopses/content, character profiles, and world entries.</p>
+</div>
+{% endif %}
+
+<!-- Pagination -->
+{% if q and (has_prev or has_next) %}
+<div class="flex items-center justify-center gap-2 mt-6">
+  {% if has_prev %}
+  <a class="btn btn-sm"
+     href="?q={{ q|urlencode }}&module={{ module }}&case={{ '1' if case_sensitive else '0' }}&regex={{ '1' if regex else '0' }}&page={{ page - 1 }}">
+    ← Previous
+  </a>
+  {% else %}
+  <button class="btn btn-sm" disabled>← Previous</button>
+  {% endif %}
+  <span class="text-mute text-sm">Page {{ page }}</span>
+  {% if has_next %}
+  <a class="btn btn-sm btn-primary"
+     href="?q={{ q|urlencode }}&module={{ module }}&case={{ '1' if case_sensitive else '0' }}&regex={{ '1' if regex else '0' }}&page={{ page + 1 }}">
+    Next →
+  </a>
+  {% else %}
+  <button class="btn btn-sm" disabled>Next →</button>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Recent searches in localStorage
+const RECENT_KEY = "asm_recent_searches";
+
+function loadRecent() {
+  try {
+    return JSON.parse(localStorage.getItem(RECENT_KEY) || "[]");
+  } catch { return []; }
+}
+
+function saveRecent(q) {
+  if (!q) return;
+  let recent = loadRecent().filter(s => s !== q);
+  recent.unshift(q);
+  recent = recent.slice(0, 8);  // cap at 8
+  localStorage.setItem(RECENT_KEY, JSON.stringify(recent));
+  renderRecent();
+}
+
+function renderRecent() {
+  const recent = loadRecent();
+  const container = document.getElementById("recentSearches");
+  const list = document.getElementById("recentSearchList");
+  if (!recent.length) {
+    container.style.display = "none";
+    return;
+  }
+  container.style.display = "block";
+  list.innerHTML = recent.map(q =>
+    `<a class="pill" href="/search/?q=${encodeURIComponent(q)}">${escapeHtml(q)}</a>`
+  ).join("");
+}
+
+function clearRecentSearches() {
+  localStorage.removeItem(RECENT_KEY);
+  renderRecent();
+}
+
+document.getElementById("searchForm").addEventListener("submit", (e) => {
+  const q = document.getElementById("searchInput").value.trim();
+  if (q) saveRecent(q);
+});
+
+document.addEventListener("DOMContentLoaded", renderRecent);
+</script>
+{% endblock %}

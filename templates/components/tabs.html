@@ -1,0 +1,35 @@
+{#
+  Reusable tabs component.
+  Usage:
+    {% set tabs_id = "settingsTabs" %}
+    {% set tabs_items = [
+      {"id": "appearance", "label": "Appearance", "active": true},
+      {"id": "story", "label": "Story"},
+      {"id": "goals", "label": "Goals"}
+    ] %}
+    {% include "components/tabs.html" %}
+
+  Each tab panel:
+  <div class="tab-panel" data-panel="appearance">...</div>
+  <div class="tab-panel hidden" data-panel="story">...</div>
+#}
+<div class="tabs" id="{{ tabs_id|default('tabs') }}">
+  {% for tab in tabs_items %}
+  <a class="tab {{ 'active' if tab.active }}" data-tab="{{ tab.id }}">{{ tab.label }}</a>
+  {% endfor %}
+</div>
+<script>
+(function() {
+  const tabsContainer = document.getElementById("{{ tabs_id|default('tabs') }}");
+  if (!tabsContainer) return;
+  tabsContainer.querySelectorAll(".tab").forEach(t => {
+    t.addEventListener("click", () => {
+      tabsContainer.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+      document.querySelectorAll(".tab-panel").forEach(p => p.classList.add("hidden"));
+      t.classList.add("active");
+      const panel = document.querySelector(`[data-panel="${t.dataset.tab}"]`);
+      if (panel) panel.classList.remove("hidden");
+    });
+  });
+})();
+</script>

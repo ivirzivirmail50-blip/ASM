@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% block title %}AI Configuration{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('settings.index') }}">Settings</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">AI</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>AI Configuration <span class="badge no-dot {{ 'success' if settings.get('ai.enabled') else 'draft' }}">{{ 'Enabled' if settings.get('ai.enabled') else 'Disabled' }}</span></h1>
+    <div class="subtitle">Optional hybrid AI: Ollama (local) or OpenAI-compatible API</div>
+  </div>
+  <a href="{{ url_for('settings.index') }}" class="btn btn-ghost">← Back to Settings</a>
+</div>
+
+<div class="card mb-4" style="border-left: 3px solid var(--warning)">
+  <div class="card-title">Privacy notice</div>
+  <p class="text-sm">
+    When AI is enabled:
+  </p>
+  <ul class="text-sm" style="padding-left: 1.5rem; color: var(--text-dim)">
+    <li><strong>Ollama (local):</strong> No data leaves your machine.</li>
+    <li><strong>API provider:</strong> Selected text is sent to the configured endpoint. Your API key is stored in the local DB but never logged or templated.</li>
+    <li>AI activity is logged to the activity log as <code>ai_action</code> entries — but prompt bodies are <strong>not</strong> stored.</li>
+    <li>AI is strictly opt-in. Disable it any time and all <code>/ai/*</code> routes return 404.</li>
+  </ul>
+</div>
+
+<form id="aiForm" class="card">
+  <div class="card-grid cols-3 mb-4">
+    <div class="form-row">
+      <label class="form-label">Enable AI</label>
+      <select name="ai.enabled" class="form-select" data-setting>
+        <option value="true" {{ 'selected' if settings.get('ai.enabled') }}>Enabled</option>
+        <option value="false" {{ 'selected' if not settings.get('ai.enabled') }}>Disabled</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Provider</label>
+      <select name="ai.provider" class="form-select" data-setting id="aiProvider">
+        <option value="ollama" {{ 'selected' if settings.get('ai.provider') == 'ollama' }}>Ollama (local)</option>
+        <option value="openai" {{ 'selected' if settings.get('ai.provider') == 'openai' }}>OpenAI-compatible (Groq, OpenRouter, etc.)</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Model</label>
+      <input type="text" name="ai.model" value="{{ settings.get('ai.model', '') }}" class="form-input" data-setting
+             placeholder="e.g., llama3, llama-3.3-70b-versatile">
+    </div>
+  </div>
+  <div class="card-grid cols-2 mb-4">
+    <div class="form-row">
+      <label class="form-label">API base URL</label>
+      <input type="text" name="ai.api_base" value="{{ settings.get('ai.api_base', '') }}" class="form-input" data-setting
+             placeholder="https://api.groq.com/openai">
+      <div class="form-hint" id="apiBaseHint">
+        <strong>Ollama:</strong> http://localhost:11434<br>
+        <strong>Groq:</strong> https://api.groq.com/openai<br>
+        <strong>OpenRouter:</strong> https://openrouter.ai/api/v1<br>
+        <strong>OpenAI:</strong> https://api.openai.com
+      </div>
+    </div>
+    <div class="form-row">
+      <label class="form-label">API key</label>
+      <input type="password" name="ai.api_key" value="{{ settings.get('ai.api_key', '') }}" class="form-input" data-setting
+             placeholder="{{ '******** (saved, type new to change)' if settings.get('ai.api_key') else 'Enter your API key' }}">
+      <div class="form-hint">Key is stored locally, never logged or exported. Leave empty to keep existing key.</div>
+    </div>
+  </div>
+  <div class="card-grid cols-2">
+    <div class="form-row">
+      <label class="form-label">Timeout (seconds)</label>
+      <input type="number" name="ai.timeout_seconds" value="{{ settings.get('ai.timeout_seconds', 60) }}" class="form-input" data-setting min="5">
+    </div>
+    <div class="form-row flex items-end gap-2">
+      <button type="button" class="btn" onclick="testAI()">Test Connection</button>
+    </div>
+  </div>
+  <div class="flex justify-end gap-2 mt-4">
+    <button type="submit" class="btn btn-primary">Save</button>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// First-enable disclosure: show modal when AI is first turned on.
+// Once accepted (ai.disclosure_accepted = true), don't show again.
+const wasEnabled = {{ 'true' if settings.get('ai.enabled') else 'false' }};
+const disclosureAccepted = {{ 'true' if settings.get('ai.disclosure_accepted') else 'false' }};
+
+if (!wasEnabled || !disclosureAccepted) {
+  const enableSelect = document.querySelector('[name="ai.enabled"]');
+  if (enableSelect) {
+    enableSelect.addEventListener("change", (e) => {
+      if (e.target.value === "true" && !disclosureAccepted) {
+        showDisclosureModal();
+      }
+    });
+  }
+  // If already enabled but disclosure not accepted, show on page load
+  if (wasEnabled && !disclosureAccepted) {
+    setTimeout(showDisclosureModal, 500);
+  }
+}
+
+async function showDisclosureModal() {
+  const provider = document.querySelector('[name="ai.provider"]').value;
+  const baseUrl = document.querySelector('[name="ai.api_base"]').value;
+  const isLocal = provider === "ollama";
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal">
+      <div class="modal-header"><h3 class="modal-title">✨ AI Privacy Disclosure</h3></div>
+      <div class="modal-body">
+        <div class="card mb-3" style="background: var(--bg-elev-2); border-left: 3px solid var(--accent)">
+          <div class="text-sm" style="color: var(--text)">
+            <strong>Provider:</strong> ${escapeHtml(provider)}<br>
+            <strong>Endpoint:</strong> ${escapeHtml(baseUrl)}<br>
+            <strong>Data flow:</strong> ${isLocal
+              ? 'Stays on your machine (Ollama runs locally). No prose leaves your computer.'
+              : 'Selected text is sent to the external endpoint above. Your API key is stored locally but never logged or exported.'}
+          </div>
+        </div>
+        <div class="text-sm text-dim mb-3">
+          By enabling AI, you understand that:
+          <ul style="padding-left: 1.5rem; margin: 0.5rem 0">
+            <li>AI features are <strong>opt-in per action</strong> — nothing happens automatically.</li>
+            <li>Every AI action is logged to the activity log as <code>ai_action</code> (action type + entity id only; <strong>prompt text is never stored</strong>).</li>
+            <li>A rate limit of 30 requests per minute prevents runaway costs.</li>
+            <li>You can disable AI at any time — all <code>/ai/*</code> routes return 404 when disabled.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" data-act="cancel">Cancel</button>
+        <button class="btn btn-primary" data-act="ok">I understand</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  backdrop.querySelector('[data-act="cancel"]').onclick = () => {
+    document.querySelector('[name="ai.enabled"]').value = "false";
+    backdrop.remove();
+  };
+  backdrop.querySelector('[data-act="ok"]').onclick = async () => {
+    // Persist disclosure acceptance
+    await asmFetch("/settings/save", {
+      method: "POST",
+      body: { "ai.disclosure_accepted": "true" }
+    });
+    backdrop.remove();
+    showToast("Disclosure accepted. AI is ready to use.", "success");
+  };
+}
+
+document.getElementById("aiForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const payload = {};
+  e.target.querySelectorAll("[data-setting]").forEach(el => {
+    payload[el.getAttribute("name")] = el.value;
+  });
+  // Don't send empty api_key (means "keep current")
+  if (!payload["ai.api_key"]) delete payload["ai.api_key"];
+  const { data } = await asmFetch("/settings/save", { method: "POST", body: payload });
+  if (data.ok) {
+    showToast("AI settings saved.", "success");
+    setTimeout(() => location.reload(), 600);
+  } else {
+    showToast(data.error || "Save failed", "error");
+  }
+});
+
+async function testAI() {
+  showToast("Testing…", "info", 1500);
+  // Save first, then test
+  const payload = {};
+  document.querySelectorAll("[data-setting]").forEach(el => {
+    payload[el.getAttribute("name")] = el.value;
+  });
+  if (!payload["ai.api_key"]) delete payload["ai.api_key"];
+  const saveRes = await asmFetch("/settings/save", { method: "POST", body: payload });
+  if (!saveRes.data.ok) {
+    showToast(saveRes.data.error || "Save failed", "error");
+    return;
+  }
+  const { data } = await asmFetch("/settings/ai/test", { method: "POST" });
+  if (data.ok) {
+    showToast(`✓ AI responded: "${data.response.slice(0, 50)}…"`, "success", 4000);
+  } else {
+    showToast(data.error || "AI test failed", "error", 4000);
+  }
+}
+</script>
+{% endblock %}

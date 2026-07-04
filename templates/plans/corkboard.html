@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Corkboard{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('plans.board') }}">Plans</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Corkboard</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Corkboard</h1>
+    <div class="subtitle">Scrivener-style index cards · drag to reorder chapters</div>
+  </div>
+  <div class="actions">
+    <a href="{{ url_for('plans.board') }}" class="btn">▦ Kanban</a>
+    <a href="{{ url_for('plans.outline') }}" class="btn">≣ Outline</a>
+    <a href="{{ url_for('plans.timeline') }}" class="btn">⌗ Timeline</a>
+  </div>
+</div>
+
+<div class="tabs">
+  <a class="tab active" data-tab="chapters">Chapters ({{ chapters|length }})</a>
+  <a class="tab" data-tab="plans">Plan Items ({{ plans|length }})</a>
+</div>
+
+<div class="tab-panel" data-panel="chapters">
+  {% if chapters %}
+  <div id="corkboardChapters" class="card-grid cols-4">
+    {% for ch in chapters %}
+    <div class="card corkboard-card" data-id="{{ ch.id }}"
+         style="background: linear-gradient(135deg, var(--bg-elev-1) 0%, var(--bg-elev-2) 100%); border-left: 4px solid {% if ch.status == 'final' %}var(--success){% elif ch.status == 'revised' %}var(--warning){% else %}var(--text-mute){% endif %}; cursor: grab">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-mute text-xs">Ch. {{ ch.sort_order }}</span>
+        <span class="drag-handle text-mute">⠿</span>
+      </div>
+      <a href="{{ url_for('chapters.detail', chapter_id=ch.id) }}"
+         style="font-weight: 600; color: var(--text); text-decoration: none; font-size: 0.95rem; display: block; margin-bottom: 0.5rem">
+        {{ ch.title }}
+      </a>
+      {% if ch.synopsis %}
+      <div class="text-sm text-dim" style="line-height: 1.4; max-height: 4.2em; overflow: hidden">
+        {{ ch.synopsis[:120] }}{% if ch.synopsis|length > 120 %}…{% endif %}
+      </div>
+      {% endif %}
+      <div class="flex items-center justify-between mt-3 pt-2" style="border-top: 1px dashed var(--border)">
+        <span class="badge {{ ch.status }}" style="font-size: 0.6rem">{{ ch.status }}</span>
+        <span class="text-mute text-xs">{{ ch.word_count }}w</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-icon">⊟</div>
+    <h3>No chapters</h3>
+  </div>
+  {% endif %}
+</div>
+
+<div class="tab-panel hidden" data-panel="plans">
+  {% if plans %}
+  <div class="card-grid cols-4">
+    {% for p in plans %}
+    <div class="card corkboard-card"
+         style="background: linear-gradient(135deg, var(--bg-elev-1) 0%, var(--bg-elev-2) 100%); border-left: 4px solid {% if p.status == 'final' %}var(--success){% elif p.status == 'writing' %}var(--accent){% elif p.status == 'idea' %}#a78bfa{% else %}var(--info){% endif %}">
+      <div class="flex items-center justify-between mb-2">
+        <span class="badge {{ p.status }}" style="font-size: 0.6rem">{{ p.status|replace('_',' ') }}</span>
+        {% if p.event_type %}<span class="text-mute text-xs">{{ p.event_type|replace('_',' ') }}</span>{% endif %}
+      </div>
+      <a href="{{ url_for('plans.detail', plan_id=p.id) }}"
+         style="font-weight: 600; color: var(--text); text-decoration: none; font-size: 0.95rem; display: block; margin-bottom: 0.5rem">
+        {{ p.title }}
+      </a>
+      {% if p.description %}
+      <div class="text-sm text-dim" style="line-height: 1.4; max-height: 4.2em; overflow: hidden">
+        {{ p.description[:120] }}{% if p.description|length > 120 %}…{% endif %}
+      </div>
+      {% endif %}
+      <div class="flex items-center justify-between mt-3 pt-2" style="border-top: 1px dashed var(--border)">
+        {% if p.track %}<span class="text-mute text-xs">☰ {{ p.track }}</span>{% endif %}
+        {% if p.effort_estimate %}<span class="text-mute text-xs">~{{ p.effort_estimate }}w</span>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-icon">⊟</div>
+    <h3>No plan items</h3>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll(".tab").forEach(t => {
+  t.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+    document.querySelectorAll(".tab-panel").forEach(p => p.classList.add("hidden"));
+    t.classList.add("active");
+    document.querySelector(`[data-panel="${t.dataset.tab}"]`).classList.remove("hidden");
+  });
+});
+
+// Chapter corkboard drag-reorder
+const board = document.getElementById("corkboardChapters");
+if (board && typeof Sortable !== "undefined") {
+  Sortable.create(board, {
+    animation: 150, handle: ".drag-handle",
+    ghostClass: "sortable-ghost",
+    onEnd: async (evt) => {
+      const ids = Array.from(board.children).map(el => el.dataset.id);
+      await asmFetch("/chapters/reorder", {
+        method: "POST", body: { order: ids }
+      });
+      showToast("Corkboard reordered.", "success", 1500);
+    }
+  });
+}
+</script>
+{% endblock %}

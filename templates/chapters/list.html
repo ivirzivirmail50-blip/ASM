@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}Chapters{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Chapters</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Chapters</h1>
+    <div class="subtitle">{{ total }} chapter{{ 's' if total != 1 else '' }} total</div>
+  </div>
+  <div class="actions">
+    <a href="{{ url_for('chapters.upload') }}" class="btn">↥ Upload File</a>
+    <a href="{{ url_for('chapters.bulk_import') }}" class="btn">↥ Bulk Import</a>
+    <a href="{{ url_for('chapters.new') }}" class="btn btn-primary">+ New Chapter</a>
+    <a href="{{ url_for('chapters.compare_two') }}" class="btn">⇄ Compare Two</a>
+  </div>
+</div>
+
+<!-- Filter bar -->
+<div class="card mb-6">
+  <form method="get" class="flex flex-wrap gap-3 items-center">
+    <input type="text" name="q" value="{{ search }}" placeholder="Search title…"
+           class="form-input" style="width: 220px">
+    <select name="status" class="form-select" style="width: 160px">
+      <option value="all" {{ 'selected' if status == 'all' }}>All statuses</option>
+      <option value="draft" {{ 'selected' if status == 'draft' }}>Draft</option>
+      <option value="revised" {{ 'selected' if status == 'revised' }}>Revised</option>
+      <option value="final" {{ 'selected' if status == 'final' }}>Final</option>
+    </select>
+    <select name="sort" class="form-select" style="width: 180px">
+      <option value="sort_order" {{ 'selected' if sort == 'sort_order' }}>Manual order</option>
+      <option value="title" {{ 'selected' if sort == 'title' }}>Title A→Z</option>
+      <option value="word_count" {{ 'selected' if sort == 'word_count' }}>Word count</option>
+      <option value="created_at" {{ 'selected' if sort == 'created_at' }}>Date created</option>
+      <option value="updated_at" {{ 'selected' if sort == 'updated_at' }}>Date modified</option>
+      <option value="status" {{ 'selected' if sort == 'status' }}>Status</option>
+    </select>
+    <button type="submit" class="btn btn-primary">Apply</button>
+    <a href="{{ url_for('chapters.list_view') }}" class="btn btn-ghost">Reset</a>
+    {% if chapters %}
+    <div class="grow"></div>
+    <span class="text-mute text-sm">Drag cards by handle to reorder · checkbox for bulk actions</span>
+    {% endif %}
+  </form>
+</div>
+
+{% if chapters %}
+<!-- Bulk status toolbar -->
+<div class="card mb-4" id="bulkToolbar" style="display: none">
+  <div class="flex items-center gap-3 flex-wrap">
+    <span class="text-sm"><strong id="bulkCount">0</strong> selected</span>
+    <select id="bulkStatusSelect" class="form-select" style="width: 160px">
+      <option value="">Change status to…</option>
+      <option value="draft">Draft</option>
+      <option value="revised">Revised</option>
+      <option value="final">Final</option>
+    </select>
+    <button class="btn btn-primary btn-sm" onclick="applyBulkStatus()">Apply</button>
+    <button class="btn btn-ghost btn-sm" onclick="clearBulkSelection()">Clear</button>
+  </div>
+</div>
+
+<div id="chapterList" class="card-grid cols-3">
+  {% for ch in chapters %}
+  <div class="chapter-card" data-id="{{ ch.id }}">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <input type="checkbox" class="bulk-checkbox" value="{{ ch.id }}" onchange="updateBulkCount()">
+        <span class="drag-handle" title="Drag to reorder">⠿</span>
+      </div>
+      <span class="badge {{ ch.status }}" style="cursor: pointer"
+            title="Click to cycle status"
+            onclick="cycleStatus('{{ ch.id }}', '{{ ch.status }}')">{{ ch.status }}</span>
+    </div>
+    <div style="font-size: 0.78rem; color: var(--text-mute)">Chapter {{ ch.sort_order }}</div>
+    <a href="{{ url_for('chapters.detail', chapter_id=ch.id) }}"
+       style="font-weight: 600; color: var(--text); text-decoration: none; font-size: 0.95rem">
+       {{ ch.title }}
+    </a>
+    {% if ch.synopsis %}
+    <div class="text-sm text-dim" style="line-height: 1.4; max-height: 2.8em; overflow: hidden">
+      {{ ch.synopsis[:160] }}{% if ch.synopsis|length > 160 %}…{% endif %}
+    </div>
+    {% endif %}
+    {% if ch.tags %}
+    {% set tags = ch.tags | from_json %}
+    <div class="flex flex-wrap gap-1">
+      {% for t in tags[:5] %}
+      <span class="badge no-dot" style="font-size: 0.65rem">{{ t }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <!-- Word count target progress -->
+    {% if ch.target_word_count %}
+    {% set tpct = (ch.word_count / ch.target_word_count * 100) | int %}
+    <div>
+      <div class="flex justify-between text-xs text-mute mb-1">
+        <span>{{ ch.word_count }} / {{ ch.target_word_count }} words</span>
+        <span>{{ tpct }}%</span>
+      </div>
+      <div class="progress" style="height: 5px">
+        <div class="progress-bar {{ 'danger' if tpct < 25 else ('warning' if tpct < 75 else 'success') }}"
+             style="width: {{ [tpct, 100] | min }}%"></div>
+      </div>
+    </div>
+    {% else %}
+    <div class="text-xs text-mute">{{ ch.word_count }} words · ~{{ (ch.word_count / 250) | int }} min read</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Pagination -->
+{% if pages > 1 %}
+<div class="flex items-center justify-center gap-2 mt-6">
+  {% for p in range(1, pages + 1) %}
+  <a href="?page={{ p }}&status={{ status }}&sort={{ sort }}&q={{ search }}"
+     class="btn btn-sm {{ 'btn-primary' if p == page else '' }}">{{ p }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+<script src="{{ url_for('static', filename='js/chapter_reorder.js') }}"></script>
+<script>
+function updateBulkCount() {
+  const checked = document.querySelectorAll(".bulk-checkbox:checked");
+  const toolbar = document.getElementById("bulkToolbar");
+  const count = document.getElementById("bulkCount");
+  if (checked.length > 0) {
+    toolbar.style.display = "block";
+    count.textContent = checked.length;
+  } else {
+    toolbar.style.display = "none";
+  }
+}
+function clearBulkSelection() {
+  document.querySelectorAll(".bulk-checkbox:checked").forEach(cb => cb.checked = false);
+  updateBulkCount();
+}
+async function applyBulkStatus() {
+  const ids = Array.from(document.querySelectorAll(".bulk-checkbox:checked")).map(cb => cb.value);
+  const status = document.getElementById("bulkStatusSelect").value;
+  if (!ids.length || !status) { showToast("Select chapters and a status.", "warning"); return; }
+  const { data } = await asmFetch("/chapters/bulk-status", {
+    method: "POST", body: { ids, status }
+  });
+  if (data.ok) {
+    showToast(`Updated ${ids.length} chapter${ids.length > 1 ? 's' : ''} → ${status}`, "success");
+    setTimeout(() => location.reload(), 600);
+  } else {
+    showToast(data.error || "Failed", "error");
+  }
+}
+</script>
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">▤</div>
+  <h3>No chapters yet</h3>
+  <p>Upload a manuscript file or create your first chapter.</p>
+  <div class="flex justify-center gap-2 mt-3">
+    <a href="{{ url_for('chapters.upload') }}" class="btn">↥ Upload File</a>
+    <a href="{{ url_for('chapters.new') }}" class="btn btn-primary">+ New Chapter</a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

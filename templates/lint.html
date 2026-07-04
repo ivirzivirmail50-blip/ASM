@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Story Lint{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Story Lint</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Story Lint Engine</h1>
+    <div class="subtitle">AI-free automated consistency & style checks across all chapters</div>
+  </div>
+</div>
+
+<!-- Summary -->
+<div class="card-grid cols-4 mb-6">
+  <div class="card">
+    <div class="card-subtitle">Total Findings</div>
+    <div style="font-size: 1.85rem; font-weight: 600; color: var(--text)">{{ result.summary.total }}</div>
+  </div>
+  <div class="card">
+    <div class="card-subtitle">Warnings</div>
+    <div style="font-size: 1.85rem; font-weight: 600; color: var(--warning)">{{ result.summary.warnings }}</div>
+  </div>
+  <div class="card">
+    <div class="card-subtitle">Info</div>
+    <div style="font-size: 1.85rem; font-weight: 600; color: var(--info)">{{ result.summary.info }}</div>
+  </div>
+  <div class="card">
+    <div class="card-subtitle">Errors</div>
+    <div style="font-size: 1.85rem; font-weight: 600; color: var(--danger)">{{ result.summary.errors }}</div>
+  </div>
+</div>
+
+<!-- By type breakdown -->
+{% if result.summary.by_type %}
+<div class="card mb-6">
+  <div class="card-title mb-3">Findings by Type</div>
+  <div class="flex flex-wrap gap-2">
+    {% for type_name, count in result.summary.by_type.items() %}
+    <span class="badge no-dot" style="font-size: 0.78rem; padding: 0.3rem 0.7rem">
+      {{ type_name|replace('_',' ') }}: {{ count }}
+    </span>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Findings list -->
+{% if result.findings %}
+<div class="card">
+  <div class="card-title mb-3">All Findings ({{ result.findings|length }})</div>
+  <div class="flex flex-col gap-2">
+    {% for f in result.findings %}
+    <div class="card" style="border-left: 3px solid {{ 'var(--danger)' if f.severity == 'error' else ('var(--warning)' if f.severity == 'warning' else 'var(--info)') }}; padding: 0.75rem 1rem">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="badge no-dot {{ 'danger' if f.severity == 'error' else ('warning' if f.severity == 'warning' else '') }}" style="font-size: 0.65rem">{{ f.severity }}</span>
+        <span class="badge no-dot" style="font-size: 0.65rem">{{ f.type|replace('_',' ') }}</span>
+        {% if f.chapter_title %}
+        <a href="/chapters/{{ f.chapter_id }}" class="text-sm" style="color: var(--accent-hover); margin-left: auto">{{ f.chapter_title }}</a>
+        {% endif %}
+      </div>
+      <div class="text-sm" style="color: var(--text); margin-bottom: 0.3rem">{{ f.message }}</div>
+      {% if f.location %}
+      <div class="text-xs text-mute">{{ f.location }}</div>
+      {% endif %}
+      {% if f.suggestion %}
+      <div class="text-xs mt-1" style="color: var(--success)">💡 {{ f.suggestion }}</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">✓</div>
+  <h3>No issues found</h3>
+  <p>Your story passes all lint checks. Great writing!</p>
+</div>
+{% endif %}
+{% endblock %}

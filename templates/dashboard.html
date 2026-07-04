@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Dashboard</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Story Cockpit</h1>
+    <div class="subtitle">{{ story_title or 'My Story' }} — at a glance</div>
+  </div>
+  <div class="actions">
+    <a href="{{ url_for('chapters.new') }}" class="btn btn-primary">+ New Chapter</a>
+    <a href="{{ url_for('characters.new') }}" class="btn">+ New Character</a>
+    <a href="{{ url_for('plans.new') }}" class="btn">+ New Plan Item</a>
+  </div>
+</div>
+
+<!-- Stats grid -->
+<div class="card-grid cols-4 mb-6">
+  <div class="card">
+    <div class="card-subtitle">Total Chapters</div>
+    <div style="font-size: 1.85rem; font-weight: 600; color: var(--text)">{{ stats.counts.chapters }}</div>
+  </div>
+  <div class="card">
+    <div class="card-subtitle">Total Characters</div>
+    <div style="font-size: 1.85rem; font-weight: 600; color: var(--text)">{{ stats.counts.characters }}</div>
+  </div>
+  <div class="card">
+    <div class="card-subtitle">World Entries</div>
+    <div style="font-size: 1.85rem; font-weight: 600; color: var(--text)">{{ stats.counts.world_entries }}</div>
+  </div>
+  <div class="card">
+    <div class="card-subtitle">Total Words</div>
+    <div style="font-size: 1.85rem; font-weight: 600; color: var(--accent-hover)">{{ "{:,}".format(stats.counts.total_words) }}</div>
+  </div>
+</div>
+
+<!-- Top row: Health bar + Ring + Streak -->
+<div class="card-grid cols-3 mb-6">
+  <!-- Story health bar -->
+  <div class="card" style="grid-column: span 2">
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <div class="card-title">Story Health</div>
+        <div class="card-subtitle">Total words vs total goal</div>
+      </div>
+      <div class="text-right">
+        <div style="font-size: 1.4rem; font-weight: 600; color: var(--text)">{{ stats.counts.total_words }}</div>
+        <div class="text-mute text-sm">/ {{ settings.get('total_word_goal', 80000) }} words</div>
+      </div>
+    </div>
+    {% set pct = (stats.counts.total_words / (settings.get('total_word_goal', 80000) or 1) * 100) | int %}
+    <div class="progress" style="height: 14px">
+      <div class="progress-bar accent" style="width: {{ [pct, 100] | min }}%"></div>
+    </div>
+    <div class="text-mute text-sm mt-2">{{ pct }}% complete · last edit: {{ stats.counts.last_edit[:10] if stats.counts.last_edit else 'never' }}</div>
+  </div>
+
+  <!-- Daily word goal ring -->
+  <div class="card flex items-center" style="gap: 1rem">
+    <div class="ring-chart" style="width: 110px; height: 110px; flex-shrink: 0">
+      <svg width="110" height="110" viewBox="0 0 110 110">
+        <circle cx="55" cy="55" r="48" stroke-width="10" fill="none" class="ring-bg"/>
+        <circle id="dailyRing" cx="55" cy="55" r="48" stroke-width="10" fill="none"
+                class="ring-fg" stroke-linecap="round"
+                stroke-dasharray="301.59" stroke-dashoffset="301.59"/>
+      </svg>
+      <div class="ring-label">
+        <span class="ring-value" id="dailyRingValue">0</span>
+        <span class="ring-sub">/ {{ settings.get('daily_word_goal', 500) }}</span>
+      </div>
+    </div>
+    <div>
+      <div class="card-title">Today's Words</div>
+      <div class="card-subtitle">Goal: {{ settings.get('daily_word_goal', 500) }}</div>
+      <div class="mt-2 text-sm" style="color: var(--text-dim)">
+        Week: <strong style="color: var(--accent-hover)">{{ stats.words_this_week }}</strong><br>
+        Month: <strong style="color: var(--accent-hover)">{{ stats.words_this_month }}</strong>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Streak + word history chart -->
+<div class="card-grid cols-3 mb-6">
+  <div class="card flex items-center gap-3">
+    <div style="font-size: 2.5rem; line-height: 1">🔥</div>
+    <div>
+      <div class="card-title">Writing Streak</div>
+      <div style="font-size: 1.85rem; font-weight: 600; color: var(--warning)">{{ stats.streak }} day{{ 's' if stats.streak != 1 else '' }}</div>
+      <div class="card-subtitle">Keep it going!</div>
+    </div>
+  </div>
+  <div class="card" style="grid-column: span 2">
+    <div class="card-title mb-3">Word Count — Last 30 Days</div>
+    <canvas id="wordHistoryChart" height="80"></canvas>
+  </div>
+</div>
+
+<!-- Annual heatmap -->
+<div class="card mb-6">
+  <div class="flex items-center justify-between mb-3">
+    <div>
+      <div class="card-title">Annual Activity Heatmap</div>
+      <div class="card-subtitle">Each cell is a day — darker green means more words written</div>
+    </div>
+    <div class="heatmap-legend">
+      <span>Less</span>
+      <span class="heatmap-cell"></span>
+      <span class="heatmap-cell l1"></span>
+      <span class="heatmap-cell l2"></span>
+      <span class="heatmap-cell l3"></span>
+      <span class="heatmap-cell l4"></span>
+      <span>More</span>
+    </div>
+  </div>
+  <div class="heatmap" id="annualHeatmap"></div>
+</div>
+
+<!-- Bottom row: character heatmap + recent activity + deadlines -->
+<div class="card-grid cols-3 mb-6">
+  <div class="card" style="grid-column: span 2">
+    <div class="card-title mb-3">Character Appearance Heatmap</div>
+    {% if stats.character_heatmap %}
+    <div class="table-wrap" style="overflow-x:auto">
+      <table class="table">
+        <thead>
+          <tr><th>Character</th><th>Role</th><th>Appearances</th><th>Heat</th></tr>
+        </thead>
+        <tbody>
+          {% for c in stats.character_heatmap %}
+          <tr>
+            <td>
+              <div class="flex items-center gap-2">
+                <span class="avatar avatar-sm" style="background: {{ c.avatar_color }}">
+                  {{ c.name[:1]|upper }}
+                </span>
+                <a href="{{ url_for('characters.detail', character_id=c.id) }}">{{ c.name }}</a>
+              </div>
+            </td>
+            <td><span class="badge no-dot {{ c.role }}">{{ c.role }}</span></td>
+            <td>{{ c.appearances }}</td>
+            <td>
+              {% set heat_pct = (c.appearances / (stats.counts.chapters or 1) * 100) | int %}
+              <div class="progress" style="height: 6px; width: 120px">
+                <div class="progress-bar warm" style="width: {{ [heat_pct, 100] | min }}%"></div>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-icon">♛</div>
+      <div>No characters yet.</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-title mb-3">Recent Activity</div>
+    {% if stats.recent_activity %}
+    <div class="flex flex-col gap-2">
+      {% for a in stats.recent_activity[:10] %}
+      <div class="flex items-start gap-2 text-sm" style="padding: 0.4rem 0; border-bottom: 1px solid var(--border)">
+        <span class="status-dot {{ a.action }}"></span>
+        <div class="grow">
+          <div style="color: var(--text)">
+            <strong>{{ a.action|replace('_', ' ') }}</strong> {{ a.entity_type|replace('_', ' ') }}
+            {% if a.entity_id and a.entity_id != 'batch' %}
+              {% if a.entity_type == 'chapter' %}
+              <a href="{{ url_for('chapters.detail', chapter_id=a.entity_id) }}">{{ a.entity_title }}</a>
+              {% elif a.entity_type == 'character' %}
+              <a href="{{ url_for('characters.detail', character_id=a.entity_id) }}">{{ a.entity_title }}</a>
+              {% elif a.entity_type == 'plan' %}
+              <a href="{{ url_for('plans.detail', plan_id=a.entity_id) }}">{{ a.entity_title }}</a>
+              {% elif a.entity_type == 'world_entry' %}
+              <a href="{{ url_for('world.detail', entry_id=a.entity_id) }}">{{ a.entity_title }}</a>
+              {% else %}
+              <span style="color: var(--text-dim)">{{ a.entity_title }}</span>
+              {% endif %}
+            {% else %}
+            <span style="color: var(--text-dim)">{{ a.entity_title }}</span>
+            {% endif %}
+          </div>
+          {% if a.word_count_delta %}
+          <div class="text-xs" style="color: {{ 'var(--success)' if a.word_count_delta > 0 else 'var(--danger)' }}">
+            {{ '+' if a.word_count_delta > 0 }}{{ a.word_count_delta }} words
+          </div>
+          {% endif %}
+          <div class="text-xs text-mute">{{ a.timestamp[:19]|replace('T', ' ') }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-icon">⬢</div>
+      <div>No activity yet.</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Upcoming deadlines -->
+<div class="card">
+  <div class="card-title mb-3">Upcoming Deadlines (next 7 days)</div>
+  {% if stats.upcoming_deadlines %}
+  <div class="flex flex-col gap-2">
+    {% for d in stats.upcoming_deadlines %}
+    <div class="flex items-center gap-3" style="padding: 0.5rem 0; border-bottom: 1px solid var(--border)">
+      <span class="badge {{ d.status }}">{{ d.status }}</span>
+      <a href="{{ url_for('plans.detail', plan_id=d.id) }}" class="grow">{{ d.title }}</a>
+      <span class="text-mute text-sm">Due: {{ d.deadline }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-icon">📅</div>
+    <div>No upcoming deadlines.</div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- AI Tools (only if enabled) -->
+{% if settings and settings.get('ai.enabled') %}
+<div class="card" style="border-left: 3px solid var(--accent)">
+  <div class="card-title mb-3">✨ AI Tools</div>
+  <div class="card-grid cols-2">
+    <button class="btn" onclick="runConsistencyCheck()">🔍 Consistency Check</button>
+    <button class="btn" onclick="openNameGenerator()">🎲 Name Generator</button>
+  </div>
+  <div class="text-xs text-mute mt-2">AI scans chapters for contradictions against your character/world DB.</div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+{% endblock %}

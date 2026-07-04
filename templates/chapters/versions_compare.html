@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Compare Versions{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('chapters.list_view') }}">Chapters</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('chapters.detail', chapter_id=chapter.id) }}">{{ chapter.title }}</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Compare</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Compare Versions</h1>
+    <div class="subtitle">{{ chapter.title }}</div>
+  </div>
+  <div class="actions">
+    <button class="btn" onclick="exportDiff('diff_{{ chapter.id }}.txt', collectDiffAsText(), 'txt')">↧ Export TXT</button>
+    <button class="btn" onclick="exportDiff('diff_{{ chapter.id }}.html', collectDiffAsHtml(), 'html')">↧ Export HTML</button>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-grid cols-2">
+    <div>
+      <div class="text-mute text-sm">Version A (older)</div>
+      <div style="font-weight: 600">v{{ v1.version_number }} — {{ v1.uploaded_at.strftime('%Y-%m-%d %H:%M') if v1.uploaded_at else '-' }}</div>
+      <div class="text-sm text-dim">{{ v1.source }} · {{ v1.word_count }} words</div>
+    </div>
+    <div>
+      <div class="text-mute text-sm">Version B (newer)</div>
+      <div style="font-weight: 600">v{{ v2.version_number }} — {{ v2.uploaded_at.strftime('%Y-%m-%d %H:%M') if v2.uploaded_at else '-' }}</div>
+      <div class="text-sm text-dim">{{ v2.source }} · {{ v2.word_count }} words</div>
+    </div>
+  </div>
+  <div class="mt-3 flex gap-3 text-sm items-center">
+    <span class="text-success">+{{ stats.added_lines }} added</span>
+    <span class="text-danger">−{{ stats.deleted_lines }} deleted</span>
+    <div class="grow"></div>
+    <button class="btn btn-sm" onclick="navHunk(-1)">↑ Prev hunk</button>
+    <button class="btn btn-sm" onclick="navHunk(1)">Next hunk ↓</button>
+  </div>
+</div>
+
+<div class="diff-view" id="diffView">
+  {% for d in diff %}
+  <div class="diff-{{ d.op }}" {% if d.op != 'eq' %}data-hunk="1"{% endif %}>
+    <span class="diff-sign">{{ {'eq': ' ', 'add': '+', 'del': '-'}[d.op] }}</span>
+    <span class="diff-text">
+      {% if d.word_diff %}
+        {% for seg in d.word_diff %}
+          {% if seg.op == 'add' %}<ins style="background: var(--success-soft); color: var(--success); text-decoration: none">{{ seg.text }}</ins>{% elif seg.op == 'del' %}<del style="background: var(--danger-soft); color: var(--danger); text-decoration: none">{{ seg.text }}</del>{% else %}{{ seg.text }}{% endif %} 
+        {% endfor %}
+      {% else %}
+        {{ d.text }}
+      {% endif %}
+    </span>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/diff.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Characters{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Characters</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Characters</h1>
+    <div class="subtitle">{{ characters|length }} total</div>
+  </div>
+  <div class="actions">
+    <a href="{{ url_for('characters.graph') }}" class="btn">⦿ Relationship Graph</a>
+    <a href="{{ url_for('characters.compare') }}" class="btn">⇄ Compare</a>
+    <a href="{{ url_for('characters.new') }}" class="btn btn-primary">+ New Character</a>
+  </div>
+</div>
+
+<div class="card mb-6">
+  <form method="get" class="flex flex-wrap gap-3 items-center">
+    <input type="text" name="q" value="{{ search }}" placeholder="Search name / notes…"
+           class="form-input" style="width: 240px">
+    <select name="role" class="form-select" style="width: 180px">
+      <option value="all" {{ 'selected' if role == 'all' }}>All roles</option>
+      <option value="protagonist" {{ 'selected' if role == 'protagonist' }}>Protagonist</option>
+      <option value="antagonist" {{ 'selected' if role == 'antagonist' }}>Antagonist</option>
+      <option value="supporting" {{ 'selected' if role == 'supporting' }}>Supporting</option>
+      <option value="minor" {{ 'selected' if role == 'minor' }}>Minor</option>
+    </select>
+    <select name="sort" class="form-select" style="width: 160px">
+      <option value="name" {{ 'selected' if sort == 'name' }}>Name A→Z</option>
+      <option value="created_at" {{ 'selected' if sort == 'created_at' }}>Date created</option>
+    </select>
+    <button class="btn btn-primary">Apply</button>
+  </form>
+</div>
+
+{% if characters %}
+<div class="card-grid cols-3">
+  {% for c in characters %}
+  <a href="{{ url_for('characters.detail', character_id=c.id) }}"
+     class="card flex items-center gap-3" style="text-decoration: none; transition: all 0.15s ease">
+    <span class="avatar avatar-lg" style="background: {{ c.avatar_color }}">{{ c.name[:1]|upper }}</span>
+    <div class="grow">
+      <div style="font-weight: 600; color: var(--text); font-size: 1.05rem">{{ c.name }}</div>
+      <div class="flex items-center gap-2 mt-1">
+        <span class="badge {{ c.role }}">{{ c.role }}</span>
+        {% if c.age %}<span class="text-mute text-sm">{{ c.age }}</span>{% endif %}
+      </div>
+      {% if c.gender %}<div class="text-mute text-sm mt-1">{{ c.gender }}</div>{% endif %}
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">♛</div>
+  <h3>No characters yet</h3>
+  <p>Create the cast of your story.</p>
+  <a href="{{ url_for('characters.new') }}" class="btn btn-primary mt-3">+ New Character</a>
+</div>
+{% endif %}
+{% endblock %}

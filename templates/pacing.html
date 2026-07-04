@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% block title %}Pacing Analysis{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Pacing Analysis</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Pacing Analysis</h1>
+    <div class="subtitle">Chapter tension, rhythm & dialogue/narration ratio</div>
+  </div>
+</div>
+
+{% if result.chapters %}
+<!-- Summary -->
+<div class="card-grid cols-4 mb-6">
+  <div class="card">
+    <div class="card-subtitle">Total Chapters</div>
+    <div style="font-size: 1.85rem; font-weight: 600">{{ result.summary.chapter_count }}</div>
+  </div>
+  <div class="card">
+    <div class="card-subtitle">Total Words</div>
+    <div style="font-size: 1.85rem; font-weight: 600">{{ result.summary.total_words }}</div>
+  </div>
+  <div class="card">
+    <div class="card-subtitle">Avg Chapter</div>
+    <div style="font-size: 1.85rem; font-weight: 600">{{ result.summary.avg_chapter_words }}w</div>
+  </div>
+  <div class="card">
+    <div class="card-subtitle">Avg Tension</div>
+    <div style="font-size: 1.85rem; font-weight: 600; color: var(--accent-hover)">{{ result.summary.avg_tension }}/10</div>
+  </div>
+</div>
+
+<!-- Rhythm assessment -->
+<div class="card mb-6" style="border-left: 3px solid var(--accent)">
+  <div class="card-title">📊 Rhythm Assessment</div>
+  <p class="text-sm" style="color: var(--text); margin: 0.5rem 0">{{ result.summary.overall_rhythm }}</p>
+  <div class="text-xs text-mute mt-1">
+    Longest: {{ result.summary.longest }} · Shortest: {{ result.summary.shortest }}
+  </div>
+</div>
+
+<!-- Tension chart -->
+<div class="card mb-6">
+  <div class="card-title mb-3">Chapter Tension Curve</div>
+  <div style="position: relative; height: 250px; max-height: 250px; overflow: hidden">
+    <canvas id="tensionChart"></canvas>
+  </div>
+</div>
+
+<!-- Word count chart -->
+<div class="card mb-6">
+  <div class="card-title mb-3">Chapter Word Count Distribution</div>
+  <div style="position: relative; height: 250px; max-height: 250px; overflow: hidden">
+    <canvas id="wordCountChart"></canvas>
+  </div>
+</div>
+
+<!-- Dialogue vs Narration -->
+<div class="card mb-6">
+  <div class="card-title mb-3">Dialogue vs. Narration Ratio (per chapter)</div>
+  <div style="position: relative; height: 250px; max-height: 250px; overflow: hidden">
+    <canvas id="dialogueChart"></canvas>
+  </div>
+</div>
+
+<!-- Detailed table -->
+<div class="card">
+  <div class="card-title mb-3">Per-Chapter Breakdown</div>
+  <div style="max-height: 500px; overflow-y: auto; border-radius: 8px">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Chapter</th>
+        <th>Words</th>
+        <th>Tension</th>
+        <th>Dialogue</th>
+        <th>Narration</th>
+        <th>Avg Sentence</th>
+        <th>Scenes</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ch in result.chapters %}
+      <tr>
+        <td>{{ ch.sort_order }}</td>
+        <td><a href="/chapters/{{ ch.id }}" style="color: var(--accent-hover)">{{ ch.title }}</a></td>
+        <td>{{ ch.word_count }}</td>
+        <td>
+          <div class="flex items-center gap-2">
+            <span style="font-weight: 600; color: {{ 'var(--danger)' if ch.tension_score >= 7 else ('var(--warning)' if ch.tension_score >= 4 else 'var(--text-dim)') }}">{{ ch.tension_score }}</span>
+            <div class="progress" style="height: 5px; width: 60px">
+              <div class="progress-bar {{ 'danger' if ch.tension_score >= 7 else ('warning' if ch.tension_score >= 4 else 'accent') }}"
+                   style="width: {{ ch.tension_score * 10 }}%"></div>
+            </div>
+          </div>
+        </td>
+        <td>{{ ch.dialogue_pct }}%</td>
+        <td>{{ ch.narration_pct }}%</td>
+        <td>{{ ch.avg_sentence_len }}w</td>
+        <td>{{ ch.scene_count }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">📊</div>
+  <h3>No chapters to analyze</h3>
+  <p>Write some chapters first to see pacing analysis.</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+{% if result.chapters %}
+const chapters = {{ result.chapters | tojson }};
+const labels = chapters.map(c => "Ch." + c.sort_order);
+const tensions = chapters.map(c => c.tension_score);
+const wordCounts = chapters.map(c => c.word_count);
+const dialoguePcts = chapters.map(c => c.dialogue_pct);
+const narrationPcts = chapters.map(c => c.narration_pct);
+
+// Tension curve
+new Chart(document.getElementById("tensionChart"), {
+  type: "line",
+  data: {
+    labels: labels,
+    datasets: [{
+      label: "Tension (0-10)",
+      data: tensions,
+      borderColor: "#ef4444",
+      backgroundColor: "rgba(239, 68, 68, 0.1)",
+      fill: true, tension: 0.35,
+      pointRadius: 5, pointHoverRadius: 7,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { beginAtZero: true, max: 10,
+           grid: { color: "rgba(108,115,153,0.15)" },
+           ticks: { color: "#6b7299" } },
+      x: { grid: { display: false }, ticks: { color: "#6b7299" } }
+    }
+  }
+});
+
+// Word count
+new Chart(document.getElementById("wordCountChart"), {
+  type: "bar",
+  data: {
+    labels: labels,
+    datasets: [{
+      label: "Word Count",
+      data: wordCounts,
+      backgroundColor: "rgba(99, 102, 241, 0.6)",
+      borderColor: "#6366f1",
+      borderWidth: 1,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { beginAtZero: true,
+           grid: { color: "rgba(108,115,153,0.15)" },
+           ticks: { color: "#6b7299" } },
+      x: { grid: { display: false }, ticks: { color: "#6b7299" } }
+    }
+  }
+});
+
+// Dialogue vs Narration (stacked bar)
+new Chart(document.getElementById("dialogueChart"), {
+  type: "bar",
+  data: {
+    labels: labels,
+    datasets: [
+      { label: "Dialogue %", data: dialoguePcts,
+        backgroundColor: "rgba(34, 197, 94, 0.6)", borderColor: "#22c55e" },
+      { label: "Narration %", data: narrationPcts,
+        backgroundColor: "rgba(99, 102, 241, 0.4)", borderColor: "#6366f1" }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { labels: { color: "#9aa3c7" } } },
+    scales: {
+      x: { stacked: true, grid: { display: false }, ticks: { color: "#6b7299" } },
+      y: { stacked: true, max: 100,
+           grid: { color: "rgba(108,115,153,0.15)" },
+           ticks: { color: "#6b7299", callback: v => v + "%" } }
+    }
+  }
+});
+{% endif %}
+</script>
+{% endblock %}

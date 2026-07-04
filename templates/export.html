@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}Export{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Export</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Export Center</h1>
+    <div class="subtitle">Compile presets · async export · multiple formats</div>
+  </div>
+</div>
+
+<!-- Compile Presets -->
+<div class="card mb-6">
+  <div class="card-title mb-3">📋 Compile Presets (Scrivener-style)</div>
+  <p class="text-sm text-dim mb-3">Select a preset to configure font, spacing, margins, and layout for your exports.</p>
+  <div class="card-grid cols-3">
+    {% for p in presets %}
+    <div class="card preset-card" data-key="{{ p.key }}"
+         style="cursor: pointer; border: 2px solid var(--border); transition: all 0.15s ease"
+         onclick="selectPreset('{{ p.key }}', this)">
+      <div style="font-weight: 600; font-size: 0.9rem; color: var(--text)">{{ p.name }}</div>
+      <div class="text-xs text-mute mt-1" style="line-height: 1.4">{{ p.description }}</div>
+      <div class="flex flex-wrap gap-1 mt-2">
+        <span class="badge no-dot" style="font-size: 0.6rem">{{ p.font }}</span>
+        <span class="badge no-dot" style="font-size: 0.6rem">{{ p.font_size }}pt</span>
+        <span class="badge no-dot" style="font-size: 0.6rem">{{ p.line_spacing }}x spacing</span>
+        {% if p.toc %}<span class="badge no-dot success" style="font-size: 0.6rem">TOC</span>{% endif %}
+        {% if p.title_page %}<span class="badge no-dot" style="font-size: 0.6rem">Title page</span>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  <div id="presetStatus" class="text-sm text-mute mt-3" style="display:none"></div>
+</div>
+
+<!-- Progress bar (hidden until async export starts) -->
+<div class="card mb-6 hidden" id="progressCard">
+  <div class="flex items-center justify-between mb-2">
+    <div class="card-title" style="margin: 0" id="progressTitle">Exporting...</div>
+    <span class="text-mute text-sm" id="progressPercent">0%</span>
+  </div>
+  <div class="progress" style="height: 10px">
+    <div class="progress-bar accent" id="progressBar" style="width: 0%"></div>
+  </div>
+  <div class="text-sm text-dim mt-2" id="progressStage">Starting...</div>
+</div>
+
+<div class="card-grid cols-2 mb-6">
+  <!-- Full manuscript -->
+  <div class="card">
+    <div class="card-title">Full Manuscript</div>
+    <p class="text-sm text-dim">Concatenated chapters in sort order, with title page.</p>
+    <div class="flex flex-wrap gap-2 mt-3">
+      <a href="{{ url_for('export.manuscript', fmt='txt') }}" class="btn btn-sm">TXT</a>
+      <a href="{{ url_for('export.manuscript', fmt='md') }}" class="btn btn-sm">Markdown</a>
+      <a href="{{ url_for('export.manuscript', fmt='html') }}" class="btn btn-sm">HTML</a>
+      <button class="btn btn-sm" onclick="startAsyncExport('manuscript', 'docx')">DOCX (async)</button>
+      <button class="btn btn-sm" onclick="startAsyncExport('manuscript', 'pdf')">PDF (async)</button>
+      <button class="btn btn-sm" onclick="startAsyncExport('manuscript', 'epub')">EPUB (async)</button>
+    </div>
+  </div>
+
+  <!-- World bible -->
+  <div class="card">
+    <div class="card-title">World Bible</div>
+    <p class="text-sm text-dim">All world entries, organized by type.</p>
+    <div class="flex flex-wrap gap-2 mt-3">
+      <a href="{{ url_for('export.world_bible', fmt='txt') }}" class="btn btn-sm">TXT</a>
+      <a href="{{ url_for('export.world_bible', fmt='pdf') }}" class="btn btn-sm">PDF</a>
+      <a href="{{ url_for('export.world_bible', fmt='docx') }}" class="btn btn-sm">DOCX</a>
+      <a href="{{ url_for('export.world_bible', fmt='json') }}" class="btn btn-sm">JSON</a>
+    </div>
+  </div>
+</div>
+
+<!-- Full project -->
+<div class="card mb-6">
+  <div class="card-title">Full Project Export</div>
+  <p class="text-sm text-dim">Single document containing manuscript + character sheets + world bible. Runs in background with progress.</p>
+  <div class="flex flex-wrap gap-2 mt-3">
+    <button class="btn btn-sm" onclick="startAsyncExport('full_project', 'docx')">DOCX (async)</button>
+    <button class="btn btn-sm" onclick="startAsyncExport('full_project', 'pdf')">PDF (async)</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">JSON Project Export</div>
+  <p class="text-sm text-dim">Full database export as JSON. API keys are stripped for security.</p>
+  <div class="flex flex-wrap gap-2 mt-3">
+    <a href="{{ url_for('settings.export_json') }}" class="btn btn-sm btn-primary">↧ Export JSON</a>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ---- Compile Preset selection ----
+async function selectPreset(key, cardEl) {
+  // Visual: highlight selected
+  document.querySelectorAll(".preset-card").forEach(c => {
+    c.style.borderColor = "var(--border)";
+    c.style.background = "";
+  });
+  cardEl.style.borderColor = "var(--accent)";
+  cardEl.style.background = "var(--accent-light)";
+
+  const status = document.getElementById("presetStatus");
+  status.style.display = "block";
+  status.textContent = "Applying preset...";
+
+  const { data } = await asmFetch(`/export/presets/${key}/apply`, { method: "POST" });
+  if (data.ok) {
+    status.textContent = `✓ "${key}" preset applied. Font: ${data.settings.manuscript_font}, Size: ${data.settings.manuscript_font_size}pt, Spacing: ${data.settings.manuscript_line_spacing}x, Margins: ${data.settings.manuscript_margins}"`;
+    status.style.color = "var(--success)";
+    showToast("Preset applied to manuscript settings.", "success");
+  } else {
+    status.textContent = "Failed to apply preset.";
+    status.style.color = "var(--danger)";
+  }
+}
+
+async function startAsyncExport(entityType, fmt) {
+  const card = document.getElementById("progressCard");
+  const bar = document.getElementById("progressBar");
+  const pct = document.getElementById("progressPercent");
+  const stage = document.getElementById("progressStage");
+  const title = document.getElementById("progressTitle");
+
+  card.classList.remove("hidden");
+  title.textContent = `Exporting ${entityType} → ${fmt.toUpperCase()}...`;
+  bar.style.width = "0%";
+  pct.textContent = "0%";
+  stage.textContent = "Starting...";
+
+  const { data: startData } = await asmFetch(`/export/async/${entityType}/${fmt}`, { method: "GET" });
+  if (!startData.ok) {
+    showToast(startData.error || "Failed to start export", "error");
+    card.classList.add("hidden");
+    return;
+  }
+
+  const taskId = startData.task_id;
+  // Poll for progress
+  const poll = setInterval(async () => {
+    const { data } = await asmFetch(`/export/status/${taskId}`, { method: "GET" });
+    if (!data.ok) return;
+    bar.style.width = data.progress + "%";
+    pct.textContent = data.progress + "%";
+    stage.textContent = data.stage || "";
+    if (data.status === "done") {
+      clearInterval(poll);
+      stage.textContent = "Done! Starting download...";
+      showToast("Export complete!", "success");
+      // Trigger download
+      window.location.href = `/export/download/${taskId}`;
+      setTimeout(() => card.classList.add("hidden"), 3000);
+    } else if (data.status === "error") {
+      clearInterval(poll);
+      showToast(data.stage || "Export failed", "error");
+      card.classList.add("hidden");
+    }
+  }, 500);
+}
+</script>
+{% endblock %}

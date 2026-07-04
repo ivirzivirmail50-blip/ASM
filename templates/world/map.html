@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}World Map{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('world.index') }}">World Library</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Map</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Interactive World Map</h1>
+    <div class="subtitle">Click a pin to view a location · drag pins to reposition · mouse wheel to zoom</div>
+  </div>
+  <div class="actions">
+    <label class="btn" style="cursor: pointer">
+      🖼 Upload Map Image
+      <input type="file" style="display: none" accept="image/*" onchange="uploadMapImage(this)">
+    </label>
+    <button class="btn" onclick="enterAddPinMode()">+ Add Pin</button>
+    <button class="btn" onclick="resetZoom()">↺ Reset View</button>
+    <button class="btn" onclick="zoomMap(0.2)">+</button>
+    <button class="btn" onclick="zoomMap(-0.2)">−</button>
+  </div>
+</div>
+
+<div class="world-map-container" id="mapContainer">
+  <div id="mapViewport" style="width: 100%; height: 100%; overflow: hidden; position: relative; transform-origin: 0 0;">
+    {% if map_image_path %}
+    <img src="{{ map_image_path }}" alt="World map"
+         style="width: 100%; height: 100%; object-fit: contain; display: block; user-select: none; pointer-events: none">
+    {% else %}
+    <canvas id="mapCanvas" width="1200" height="700" style="width: 100%; height: 100%; display: block"></canvas>
+    {% endif %}
+
+    <!-- Pins rendered as absolutely-positioned HTML elements -->
+    <div id="pinsLayer" style="position: absolute; inset: 0; pointer-events: none">
+      {% for e in entries %}
+      {% if e.map_pin_x is not none %}
+      <div class="world-map-pin" data-id="{{ e.id }}"
+           style="left: {{ e.map_pin_x }}%; top: {{ e.map_pin_y }}%; pointer-events: auto">
+        <div class="pin-marker" style="background: {{ '#22c55e' if e.category == 'Capital' else ('#ec4899' if e.category == 'Ruins' else '#6366f1') }}"></div>
+        <div class="pin-label">{{ e.name }}</div>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="card mt-4">
+  <div class="card-title mb-2">Unpinned locations</div>
+  {% set unpinned = entries | selectattr('map_pin_x', 'none') | list %}
+  {% if unpinned %}
+  <div class="flex flex-wrap gap-2">
+    {% for e in unpinned %}
+    <a href="{{ url_for('world.detail', entry_id=e.id) }}" class="badge no-dot">{{ e.name }}</a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="text-mute text-sm">All locations have pins.</div>
+  {% endif %}
+</div>
+
+<div class="card mt-4">
+  <div class="card-title mb-2">How to use</div>
+  <div class="card-grid cols-3">
+    <div>
+      <div class="text-sm" style="color: var(--text); font-weight: 600; margin-bottom: 0.3rem">Map</div>
+      <div class="text-sm text-dim">• Upload an image with 🖼 button<br>• Mouse wheel to zoom<br>• Click + drag background to pan<br>• Click "+ Add Pin" then click map</div>
+    </div>
+    <div>
+      <div class="text-sm" style="color: var(--text); font-weight: 600; margin-bottom: 0.3rem">Pins</div>
+      <div class="text-sm text-dim">• Drag pin to reposition<br>• Click pin → popup with "View"<br>• Right-click pin → remove (entry kept)<br>• Pin color = category</div>
+    </div>
+    <div>
+      <div class="text-sm" style="color: var(--text); font-weight: 600; margin-bottom: 0.3rem">Tips</div>
+      <div class="text-sm text-dim">• Without an uploaded image, a placeholder grid is shown<br>• Pin positions are percentage-based (work on any image size)</div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/world_map.js') }}"></script>
+{% endblock %}
+
+<!-- Travel Routes SVG overlay -->
+<svg id="routeOverlay" style="position:absolute;inset:0;pointer-events:none;z-index:5;width:100%;height:100%"></svg>
+
+<!-- Route controls -->
+<div class="card mt-4" id="routeControls">
+  <div class="flex items-center justify-between mb-3">
+    <div class="card-title" style="margin:0">🛤 Travel Routes</div>
+    <button class="btn btn-sm btn-primary" onclick="openRouteModal()">+ New Route</button>
+  </div>
+  <div id="routeList" class="flex flex-col gap-1"></div>
+</div>

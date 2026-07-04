@@ -1,0 +1,542 @@
+{% extends "base.html" %}
+{% block title %}Edit: {{ chapter.title }}{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('chapters.list_view') }}">Chapters</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('chapters.detail', chapter_id=chapter.id) }}">{{ chapter.title }}</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Edit</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Edit Chapter</h1>
+    <div class="subtitle">Autosaves every {{ settings.get('autosave_interval_seconds', 3) }}s · Ctrl+S to save a version · F11 for distraction-free</div>
+  </div>
+  <div class="actions">
+    <button type="button" class="btn" type="button" onclick="toggleComposition()">⛶ Focus Mode</button>
+    <a href="{{ url_for('chapters.detail', chapter_id=chapter.id) }}" class="btn btn-ghost">← Cancel</a>
+    <button type="button" class="btn btn-primary" type="button" onclick="saveChapter()">Save Version</button>
+  </div>
+</div>
+
+<form id="chapterForm" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <!-- Enhanced status bar: live WC + sprint + diff toggle -->
+  <div class="flex items-center gap-4 mb-3 flex-wrap">
+    <span id="saveStatus" class="badge success no-dot" style="font-size: 0.7rem">Saved</span>
+    <div class="live-wc">
+      <span class="wc-num" id="liveWordCount">{{ chapter.word_count }}</span>
+      <span class="text-mute">words</span>
+      {% if chapter.target_word_count %}
+      <span class="text-mute">/</span>
+      <span class="wc-goal">{{ chapter.target_word_count }}</span>
+      <div class="wc-bar"><div class="wc-fill" id="wcFill" style="width: {{ [(chapter.word_count / (chapter.target_word_count or 1) * 100)|int, 100]|min }}%"></div></div>
+      {% endif %}
+    </div>
+    <div class="grow"></div>
+    <!-- Sprint timer -->
+    <div class="flex items-center gap-2">
+      <button type="button" class="btn btn-sm" id="sprintBtn" type="button" onclick="toggleSprint()">⏱ Sprint</button>
+    </div>
+    <!-- Version diff toggle -->
+    <label class="flex items-center gap-1 text-sm" style="cursor: pointer">
+      <input type="checkbox" id="diffToggle" onchange="toggleDiffPreview()" style="cursor: pointer">
+      <span class="text-mute">Show changes</span>
+    </label>
+  </div>
+  <!-- Sprint bar (hidden until sprint starts) -->
+  <div class="sprint-bar hidden" id="sprintBar">
+    <span>⏱</span>
+    <span class="sprint-timer" id="sprintTimer">25:00</span>
+    <span class="sprint-words"><span id="sprintWordCount">0</span> words</span>
+    <span class="sprint-wpm"><span id="sprintWpm">0</span> WPM</span>
+    <button type="button" class="btn btn-ghost btn-sm" onclick="toggleSprint()">⏸</button>
+    <button type="button" class="btn btn-ghost btn-sm" onclick="stopSprint()">⏹</button>
+  </div>
+  <!-- Composition Mode settings (hidden by default) -->
+  <div class="composition-settings hidden" id="compSettings">
+    <label>🎨 <input type="color" id="compBg" value="#1a2240" onchange="applyCompStyle()"></label>
+    <label>Font size: <input type="range" id="compFont" min="14" max="24" value="16" onchange="applyCompStyle()"></label>
+    <span id="compFontVal" class="text-mute">16px</span>
+    <label>Width: <input type="range" id="compWidth" min="500" max="1000" value="720" onchange="applyCompStyle()"></label>
+    <button class="btn btn-sm btn-ghost" onclick="toggleComposition()">Exit Focus</button>
+  </div>
+  <!-- Diff preview container -->
+  <div id="diffPreviewContainer" class="hidden mb-3"></div>
+  <!-- Scene splitter -->
+  <div id="sceneSplitter" class="mb-2"></div>
+  <div class="form-row">
+    <label class="form-label">Title</label>
+    <input type="text" name="title" required value="{{ chapter.title }}" maxlength="500" class="form-input">
+  </div>
+  <div class="form-row">
+    <label class="form-label">Synopsis</label>
+    <textarea name="synopsis" class="form-textarea" rows="2">{{ chapter.synopsis or '' }}</textarea>
+  </div>
+  <div class="card-grid cols-3 mb-4">
+    <div class="form-row">
+      <label class="form-label">Status</label>
+      <select name="status" class="form-select">
+        <option value="draft" {{ 'selected' if chapter.status == 'draft' }}>Draft</option>
+        <option value="revised" {{ 'selected' if chapter.status == 'revised' }}>Revised</option>
+        <option value="final" {{ 'selected' if chapter.status == 'final' }}>Final</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Target Word Count</label>
+      <input type="number" name="target_word_count" class="form-input" min="0"
+             value="{{ chapter.target_word_count or '' }}">
+    </div>
+    <div class="form-row">
+      <label class="form-label">Tags (comma-separated)</label>
+      <input type="text" name="tags" class="form-input" value="{{ tags | join(', ') }}">
+    </div>
+  </div>
+  <div class="form-row">
+    <label class="form-label">Characters in this chapter</label>
+    <div class="form-checkbox-group">
+      {% for c in characters %}
+      <label>
+        <input type="checkbox" name="character_ids" value="{{ c.id }}"
+               {{ 'checked' if c.id in linked_char_ids }}>
+        <span class="avatar avatar-sm" style="background: {{ c.avatar_color }}; width: 20px; height: 20px; font-size: 0.65rem">{{ c.name[:1]|upper }}</span>
+        {{ c.name }}
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="form-row">
+    <label class="form-label">Content (Markdown)</label>
+    <textarea name="content" id="editor">{{ chapter.content or '' }}</textarea>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/editor.js') }}"></script>
+<script>
+let easyMDE;
+
+document.addEventListener("DOMContentLoaded", () => {
+  // Build toolbar — include AI Assist button only when AI is enabled
+  const aiEnabled = {{ 'true' if settings.get('ai.enabled') else 'false' }};
+  let toolbar = ["bold", "italic", "heading", "|", "quote", "unordered-list", "ordered-list",
+                 "|", "link", "image", "code", "table", "|", "preview", "side-by-side", "fullscreen", "|", "guide"];
+  if (aiEnabled) {
+    toolbar = ["bold", "italic", "heading", "|", "quote", "unordered-list", "ordered-list",
+               "|", "link", "image", "code", "table", "|",
+               {
+                 name: "ai-continue",
+                 action: async (editor) => {
+                   const tail = editor.value().slice(-1500);
+                   if (!tail.trim()) { showToast("Write something first.", "warning"); return; }
+                   showAILoading("AI is writing...", "Continue (basic — no context)");
+                   try {
+                     const { data } = await asmFetch("/ai/continue", {
+                       method: "POST", body: { text: tail, max_tokens: 400 }
+                     });
+                     hideAILoading();
+                     if (data.ok) {
+                       editor.value(editor.value() + "\n\n" + data.response);
+                       showToast("Continuation inserted.", "success");
+                       markDirty();
+                       // Auto-save after AI insertion
+                       
+                     } else {
+                       showToast(data.error || "AI failed", "error");
+                     }
+                   } catch (err) {
+                     hideAILoading();
+                     showToast("Cancelled or failed: " + err.message, "error");
+                   }
+                 },
+                 className: "ai-btn-continue",
+                 title: "✨ Continue (basic — no context)",
+               },
+               {
+                 name: "ai-continue-context",
+                 action: async (editor) => {
+                   const tail = editor.value().slice(-1500);
+                   if (!tail.trim()) { showToast("Write something first.", "warning"); return; }
+                   showAILoading("AI is writing with context...", "Characters + world + plot");
+                   try {
+                     const { data } = await asmFetch("/ai/continue-context", {
+                       method: "POST",
+                       body: { text: tail, chapter_id: "{{ chapter.id }}", max_tokens: 500 }
+                     });
+                     hideAILoading();
+                     if (data.ok) {
+                       editor.value(editor.value() + "\n\n" + data.response);
+                       const ctx = data.context || {};
+                       showToast(`Inserted (${ctx.characters} chars, ${ctx.world} world, ${ctx.summaries} summaries)`, "success", 4000);
+                       markDirty();
+                       
+                     } else {
+                       showToast(data.error || "AI failed", "error");
+                     }
+                   } catch (err) {
+                     hideAILoading();
+                     showToast("Cancelled or failed: " + err.message, "error");
+                   }
+                 },
+                 className: "ai-btn-context",
+                 title: "✨ Continue with Context (characters + world + plot)",
+               },
+               {
+                 name: "ai-summarize",
+                 action: async (editor) => {
+                   const text = editor.value();
+                   if (!text.trim()) { showToast("Nothing to summarize.", "warning"); return; }
+                   showAILoading("AI is summarizing...", "Generating synopsis");
+                   try {
+                     const { data } = await asmFetch("/ai/summarize", {
+                       method: "POST", body: { text }
+                     });
+                     hideAILoading();
+                     if (data.ok) {
+                       const syn = document.querySelector("textarea[name='synopsis']");
+                       if (syn) { syn.value = data.response; showToast("Synopsis filled.", "success"); }
+                     } else { showToast(data.error || "AI failed", "error"); }
+                   } catch (err) { hideAILoading(); showToast("Failed: " + err.message, "error"); }
+                 },
+                 className: "ai-btn-summarize",
+                 title: "✨ Summarize (fill synopsis)",
+               },
+               {
+                 name: "ai-tags",
+                 action: async (editor) => {
+                   const text = editor.value();
+                   if (!text.trim()) { showToast("Nothing to tag.", "warning"); return; }
+                   showAILoading("AI is suggesting tags...", "Analyzing content");
+                   try {
+                     const { data } = await asmFetch("/ai/suggest-tags", {
+                       method: "POST", body: { text }
+                     });
+                     hideAILoading();
+                     if (data.ok && data.tags && data.tags.length) {
+                       const tagInput = document.querySelector("input[name='tags']");
+                       if (tagInput) {
+                         const existing = tagInput.value.split(",").map(s => s.trim()).filter(Boolean);
+                         const merged = Array.from(new Set([...existing, ...data.tags])).join(", ");
+                         tagInput.value = merged;
+                         showToast(`Tags added: ${data.tags.join(", ")}`, "success", 3000);
+                       }
+                     } else { showToast(data.error || "AI failed", "error"); }
+                   } catch (err) { hideAILoading(); showToast("Failed: " + err.message, "error"); }
+                 },
+                 className: "ai-btn-tags",
+                 title: "✨ Suggest tags",
+               },
+               "|", "preview", "side-by-side", "fullscreen", "|", "guide"];
+  }
+  easyMDE = new EasyMDE({
+    element: document.getElementById("editor"),
+    autofocus: true,
+    spellChecker: true,
+    status: ["lines", "words", "cursor"],
+    toolbar: toolbar,
+    renderingConfig: { singleLineBreaks: false },
+    minHeight: "400px",
+    tabSize: 4,
+    indentWithTabs: false,
+    unorderedListStyle: "-",
+  });
+
+  // Track changes
+  let dirty = false;
+  let saveTimer = null;
+  const status = document.getElementById("saveStatus");
+  const wc = document.getElementById("wordCount");
+
+  function markDirty() {
+    dirty = true;
+    status.textContent = "Editing…";
+    status.className = "badge warning no-dot";
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(autosave, {{ settings.get('autosave_interval_seconds', 3) }} * 1000);
+  }
+
+  async function autosave() {
+    if (!dirty) return;
+    const content = easyMDE.value();
+    status.textContent = "Saving…";
+    status.className = "badge info no-dot";
+    const { data } = await asmFetch(`/chapters/{{ chapter.id }}/autosave`, {
+      method: "POST",
+      body: { content }
+    });
+    if (data.ok) {
+      dirty = false;
+      status.textContent = "Saved (autosave)";
+      status.className = "badge success no-dot";
+      wc.textContent = `${data.word_count} words`;
+    } else {
+      status.textContent = "Save failed";
+      status.className = "badge danger no-dot";
+    }
+  }
+
+  easyMDE.codemirror.on("change", () => {
+    const v = easyMDE.value();
+    const count = v.trim().split(/\s+/).filter(Boolean).length;
+    wc.textContent = `${count} words (unsaved)`;
+    // Live word counter
+    const liveEl = document.getElementById("liveWordCount");
+    if (liveEl) liveEl.textContent = count;
+    // Update progress bar
+    const fill = document.getElementById("wcFill");
+    if (fill) {
+      const target = {{ chapter.target_word_count or 0 }};
+      if (target > 0) fill.style.width = Math.min(100, (count / target * 100)) + "%";
+    }
+    // Sprint word count
+    if (_sprintActive) {
+      document.getElementById("sprintWordCount").textContent = count - _sprintStartWords;
+      _updateSprintWpm();
+    }
+    // Diff preview (if enabled)
+    if (_diffEnabled) _refreshDiffPreview();
+    markDirty();
+  });
+
+  // Ctrl+S → save version snapshot
+  document.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+      e.preventDefault();
+      saveChapter();
+    }
+  });
+});
+
+// ---- Sprint Timer ----
+let _sprintActive = false;
+let _sprintPaused = false;
+let _sprintStartWords = 0;
+let _sprintStartTime = 0;
+let _sprintRemaining = 25 * 60; // 25 minutes in seconds
+let _sprintInterval = null;
+
+function toggleSprint() {
+  if (!_sprintActive) {
+    // Start sprint
+    _sprintActive = true;
+    _sprintPaused = false;
+    _sprintStartWords = easyMDE.value().trim().split(/\s+/).filter(Boolean).length;
+    _sprintStartTime = Date.now();
+    _sprintRemaining = 25 * 60;
+    document.getElementById("sprintBar").classList.remove("hidden");
+    document.getElementById("sprintBtn").textContent = "⏸ Pause Sprint";
+    showToast("Sprint started! Write for 25 minutes.", "info", 3000);
+    _sprintInterval = setInterval(() => {
+      if (!_sprintPaused) {
+        _sprintRemaining--;
+        _updateSprintDisplay();
+        if (_sprintRemaining <= 0) {
+          stopSprint(true);
+        }
+      }
+    }, 1000);
+  } else if (_sprintPaused) {
+    // Resume
+    _sprintPaused = false;
+    document.getElementById("sprintBtn").textContent = "⏸ Pause Sprint";
+  } else {
+    // Pause
+    _sprintPaused = true;
+    document.getElementById("sprintBtn").textContent = "▶ Resume Sprint";
+  }
+}
+
+function _updateSprintDisplay() {
+  const m = Math.floor(_sprintRemaining / 60);
+  const s = _sprintRemaining % 60;
+  document.getElementById("sprintTimer").textContent =
+    `${m.toString().padStart(2,"0")}:${s.toString().padStart(2,"0")}`;
+}
+
+function _updateSprintWpm() {
+  if (!_sprintActive || _sprintPaused) return;
+  const elapsedMin = (Date.now() - _sprintStartTime) / 60000;
+  if (elapsedMin > 0.1) {
+    const words = parseInt(document.getElementById("sprintWordCount").textContent) || 0;
+    const wpm = Math.round(words / elapsedMin);
+    document.getElementById("sprintWpm").textContent = wpm;
+  }
+}
+
+function stopSprint(completed) {
+  _sprintActive = false;
+  _sprintPaused = false;
+  if (_sprintInterval) { clearInterval(_sprintInterval); _sprintInterval = null; }
+  document.getElementById("sprintBar").classList.add("hidden");
+  document.getElementById("sprintBtn").textContent = "⏱ Sprint";
+  if (completed) {
+    const words = parseInt(document.getElementById("sprintWordCount").textContent) || 0;
+    showToast(`Sprint complete! You wrote ${words} words.`, "success", 5000);
+  } else {
+    showToast("Sprint stopped.", "info", 1500);
+  }
+}
+
+// ---- Version Diff Live Preview ----
+let _diffEnabled = false;
+let _lastVersionContent = null;
+
+async function toggleDiffPreview() {
+  _diffEnabled = document.getElementById("diffToggle").checked;
+  const container = document.getElementById("diffPreviewContainer");
+  if (_diffEnabled) {
+    container.classList.remove("hidden");
+    if (!_lastVersionContent) {
+      // Fetch the last saved version content
+      try {
+        const res = await fetch(`/chapters/{{ chapter.id }}/versions`);
+        const html = await res.text();
+        // Extract version content from the page (we'll use a dedicated endpoint instead)
+        // For now, fetch the chapter detail and extract content
+        const detailRes = await fetch(`/chapters/{{ chapter.id }}`);
+        const detailHtml = await detailRes.text();
+        // The chapter content is in the detail page — extract it
+        // Better: use a JSON endpoint. For now, use the chapter's current DB content
+        // which is the autosaved content, not the last version.
+        // We'll fetch versions and get the latest one's content.
+        const match = detailHtml.match(/restoreVersion\('([a-f0-9]+)'\)/);
+        if (match) {
+          // Fetch the version compare page to get content
+          // Simpler: just compare against the content that was loaded when the page opened
+          _lastVersionContent = `{{ chapter.content|e }}`.replace(/\\n/g, '\n').replace(/\\'/g, "'").replace(/\\"/g, '"');
+        } else {
+          _lastVersionContent = `{{ chapter.content|e }}`.replace(/\\n/g, '\n').replace(/\\'/g, "'").replace(/\\"/g, '"');
+        }
+      } catch (e) {
+        _lastVersionContent = "";
+      }
+    }
+    _refreshDiffPreview();
+  } else {
+    container.classList.add("hidden");
+  }
+}
+
+function _refreshDiffPreview() {
+  if (!_diffEnabled || !_lastVersionContent) return;
+  const currentContent = easyMDE.value();
+  const container = document.getElementById("diffPreviewContainer");
+
+  if (currentContent === _lastVersionContent) {
+    container.innerHTML = '<div class="text-mute text-sm" style="padding:0.5rem">No changes since last version.</div>';
+    return;
+  }
+
+  // Simple line-level diff
+  const oldLines = _lastVersionContent.split("\n");
+  const newLines = currentContent.split("\n");
+  const maxLen = Math.max(oldLines.length, newLines.length);
+  let addedCount = 0, removedCount = 0;
+  let html = '<div class="diff-view" style="font-size:0.78rem;max-height:300px;overflow-y:auto">';
+
+  for (let i = 0; i < maxLen; i++) {
+    const oldLine = oldLines[i] || "";
+    const newLine = newLines[i] || "";
+    if (oldLine === newLine) {
+      html += `<div class="diff-eq"><span class="diff-sign"> </span><span class="diff-text">${escapeHtml(oldLine)}</span></div>`;
+    } else {
+      if (oldLine) {
+        html += `<div class="diff-del"><span class="diff-sign">-</span><span class="diff-text">${escapeHtml(oldLine)}</span></div>`;
+        removedCount++;
+      }
+      if (newLine) {
+        html += `<div class="diff-add"><span class="diff-sign">+</span><span class="diff-text">${escapeHtml(newLine)}</span></div>`;
+        addedCount++;
+      }
+    }
+  }
+  html += '</div>';
+  html += `<div class="text-xs text-mute mt-1">+${addedCount} added · −${removedCount} removed since last version</div>`;
+  container.innerHTML = html;
+}
+
+async function saveChapter() {
+  const form = document.getElementById("chapterForm");
+  const fd = new FormData(form);
+  fd.set("content", easyMDE.value());
+  const status = document.getElementById("saveStatus");
+  status.textContent = "Saving version…";
+  status.className = "badge info no-dot";
+  const res = await fetch(`/chapters/{{ chapter.id }}/edit`, {
+    method: "POST",
+    headers: { "X-CSRFToken": getCsrfToken() },
+    body: fd
+  });
+  let data;
+  try { data = await res.json(); }
+  catch { data = { ok: false, error: "Invalid response" }; }
+  if (data.ok) {
+    showToast("Version saved.", "success");
+    setTimeout(() => window.location.href = data.url, 500);
+  } else {
+    showToast(data.error || "Save failed", "error");
+    status.textContent = "Save failed";
+    status.className = "badge danger no-dot";
+  }
+}
+
+function toggleDistractionFree() {
+  toggleComposition();
+}
+
+function toggleComposition() {
+  document.body.classList.toggle("composition-mode");
+  const settings = document.getElementById("compSettings");
+  if (document.body.classList.contains("composition-mode")) {
+    settings.classList.remove("hidden");
+    showToast("Focus mode on. Customize background, font, width below.", "info", 3000);
+    applyCompStyle();
+  } else {
+    settings.classList.add("hidden");
+  }
+}
+
+function applyCompStyle() {
+  if (!document.body.classList.contains("composition-mode")) return;
+  const bg = document.getElementById("compBg").value;
+  const fontSize = document.getElementById("compFont").value;
+  const width = document.getElementById("compWidth").value;
+  document.getElementById("compFontVal").textContent = fontSize + "px";
+  const content = document.querySelector(".content");
+  if (content) {
+    content.style.maxWidth = width + "px";
+    content.style.background = bg;
+    content.style.minHeight = "100vh";
+  }
+  const cm = document.querySelector(".CodeMirror");
+  if (cm) cm.style.fontSize = fontSize + "px";
+}
+
+// ---- Scene/Beat splitter ----
+function renderSceneSplitter() {
+  const content = easyMDE ? easyMDE.value() : "";
+  const scenes = content.split(/\n\n\n+/);
+  const container = document.getElementById("sceneSplitter");
+  if (scenes.length <= 1) {
+    container.innerHTML = "";
+    return;
+  }
+  let html = '<div class="text-xs text-mute mb-1">Scenes in this chapter:</div>';
+  scenes.forEach((scene, i) => {
+    const wc = scene.trim().split(/\s+/).filter(Boolean).length;
+    const preview = scene.trim().substring(0, 60).replace(/\n/g, " ");
+    html += `<div class="scene-marker">
+      <span class="scene-num">Scene ${i+1}</span>
+      <span>${escapeHtml(preview)}${preview.length >= 60 ? "…" : ""}</span>
+      <span class="text-mute" style="margin-left:auto">${wc}w</span>
+    </div>`;
+  });
+  container.innerHTML = html;
+}
+</script>
+{% endblock %}

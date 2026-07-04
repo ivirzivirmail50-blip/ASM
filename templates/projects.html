@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}Projects{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Projects (Multi-Book)</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Projects (Multi-Book Series)</h1>
+    <div class="subtitle">Manage multiple books in a series · each book has its own chapters, characters, world</div>
+  </div>
+  <button class="btn btn-primary" onclick="openNewProjectModal()">+ New Book</button>
+</div>
+
+<div class="card-grid cols-2">
+  {% for p in projects %}
+  <div class="card {{ '' if not p.is_active else '' }}"
+       style="{{ 'border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent)' if p.is_active else '' }}">
+    <div class="flex items-center gap-2 mb-2">
+      <span style="font-size: 1.5rem">📖</span>
+      <div class="grow">
+        <div style="font-weight: 600; font-size: 1.1rem">{{ p.name }}</div>
+        {% if p.subtitle %}<div class="text-xs text-mute">{{ p.subtitle }}</div>{% endif %}
+      </div>
+      {% if p.is_active %}
+      <span class="badge success no-dot" style="font-size: 0.65rem">ACTIVE</span>
+      {% else %}
+      <button class="btn btn-sm btn-primary" onclick="switchProject('{{ p.id }}')">Switch</button>
+      {% endif %}
+    </div>
+    <div class="card-grid cols-4 mt-3" style="gap: 0.5rem">
+      <div class="text-center" style="background: var(--bg-elev-2); border-radius: 6px; padding: 0.5rem">
+        <div style="font-size: 1.2rem; font-weight: 600">{{ p.chapters }}</div>
+        <div class="text-mute text-xs">Chapters</div>
+      </div>
+      <div class="text-center" style="background: var(--bg-elev-2); border-radius: 6px; padding: 0.5rem">
+        <div style="font-size: 1.2rem; font-weight: 600">{{ p.characters }}</div>
+        <div class="text-mute text-xs">Characters</div>
+      </div>
+      <div class="text-center" style="background: var(--bg-elev-2); border-radius: 6px; padding: 0.5rem">
+        <div style="font-size: 1.2rem; font-weight: 600">{{ p.world_entries }}</div>
+        <div class="text-mute text-xs">World</div>
+      </div>
+      <div class="text-center" style="background: var(--bg-elev-2); border-radius: 6px; padding: 0.5rem">
+        <div style="font-size: 1.2rem; font-weight: 600">{{ p.total_words }}</div>
+        <div class="text-mute text-xs">Words</div>
+      </div>
+    </div>
+    <div class="flex gap-1 mt-3 justify-end">
+      <button class="btn btn-ghost btn-sm" onclick='editProject("{{ p.id }}", {{ p.name|tojson }}, {{ (p.subtitle or "")|tojson }})'>✎ Edit</button>
+      {% if p.id != "default" %}
+      <button class="btn btn-ghost btn-sm text-danger" onclick='deleteProject("{{ p.id }}", {{ p.name|tojson }})'>🗑 Delete</button>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openNewProjectModal() {
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal">
+      <div class="modal-header"><h3 class="modal-title">+ New Book</h3></div>
+      <div class="modal-body">
+        <div class="form-row">
+          <label class="form-label">Book Title <span class="text-danger">*</span></label>
+          <input type="text" id="projName" class="form-input" placeholder="e.g. The Veil Chronicles: Book Two">
+        </div>
+        <div class="form-row">
+          <label class="form-label">Subtitle (optional)</label>
+          <input type="text" id="projSubtitle" class="form-input" placeholder="e.g. The Shadow War">
+        </div>
+        <div class="form-hint">A new book starts empty. Switch back to any book anytime — all data is separate.</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" data-act="cancel">Cancel</button>
+        <button class="btn btn-primary" data-act="ok">Create & Switch</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  backdrop.querySelector('[data-act="cancel"]').onclick = () => backdrop.remove();
+  backdrop.querySelector('[data-act="ok"]').onclick = async () => {
+    const name = document.getElementById("projName").value.trim();
+    if (!name) { showToast("Name required.", "warning"); return; }
+    const { data } = await asmFetch("/projects/new", {
+      method: "POST",
+      body: { name, subtitle: document.getElementById("projSubtitle").value }
+    });
+    backdrop.remove();
+    if (data.ok) { showToast("Book created & activated.", "success"); setTimeout(() => location.href = data.url, 500); }
+    else { showToast(data.error || "Failed", "error"); }
+  };
+  document.getElementById("projName").focus();
+}
+
+async function switchProject(id) {
+  const { data } = await asmFetch(`/projects/${id}/switch`, { method: "POST" });
+  if (data.ok) { showToast("Switched book.", "success"); setTimeout(() => location.href = data.url, 500); }
+  else { showToast(data.error || "Failed", "error"); }
+}
+
+function editProject(id, name, subtitle) {
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal">
+      <div class="modal-header"><h3 class="modal-title">Edit Book</h3></div>
+      <div class="modal-body">
+        <div class="form-row">
+          <label class="form-label">Book Title</label>
+          <input type="text" id="editProjName" class="form-input" value="${escapeHtml(name)}">
+        </div>
+        <div class="form-row">
+          <label class="form-label">Subtitle</label>
+          <input type="text" id="editProjSub" class="form-input" value="${escapeHtml(subtitle)}">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" data-act="cancel">Cancel</button>
+        <button class="btn btn-primary" data-act="ok">Save</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  backdrop.querySelector('[data-act="cancel"]').onclick = () => backdrop.remove();
+  backdrop.querySelector('[data-act="ok"]').onclick = async () => {
+    const { data } = await asmFetch(`/projects/${id}/edit`, {
+      method: "POST",
+      body: { name: document.getElementById("editProjName").value,
+              subtitle: document.getElementById("editProjSub").value }
+    });
+    backdrop.remove();
+    if (data.ok) { showToast("Saved.", "success"); setTimeout(() => location.reload(), 500); }
+    else { showToast(data.error || "Failed", "error"); }
+  };
+}
+
+async function deleteProject(id, name) {
+  const ok = await confirmDialog(`Delete "${name}" and ALL its chapters, characters, and world entries? This cannot be undone.`, { danger: true, okLabel: "Delete" });
+  if (!ok) return;
+  const { data } = await asmFetch(`/projects/${id}/delete`, { method: "POST" });
+  if (data.ok) { showToast("Book deleted. Switched to default.", "success"); setTimeout(() => location.href = data.url, 500); }
+  else { showToast(data.error || "Failed", "error"); }
+}
+</script>
+{% endblock %}

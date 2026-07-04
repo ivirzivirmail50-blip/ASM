@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}AI History{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">AI History</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>✨ AI History</h1>
+    <div class="subtitle">All AI-generated outputs: names, tags, dialogue, reports, summaries</div>
+  </div>
+  <div class="actions">
+    <div class="filter-pills">
+      <a class="pill {{ 'active' if not action_filter }}" href="/ai-history">All</a>
+      <a class="pill {{ 'active' if action_filter == 'name_gen' }}" href="/ai-history?type=name_gen">Names</a>
+      <a class="pill {{ 'active' if action_filter == 'tags' }}" href="/ai-history?type=tags">Tags</a>
+      <a class="pill {{ 'active' if action_filter == 'dialogue' }}" href="/ai-history?type=dialogue">Dialogue</a>
+      <a class="pill {{ 'active' if action_filter == 'consistency' }}" href="/ai-history?type=consistency">Reports</a>
+      <a class="pill {{ 'active' if action_filter == 'summarize' }}" href="/ai-history?type=summarize">Summaries</a>
+      <a class="pill {{ 'active' if action_filter == 'continue' }}" href="/ai-history?type=continue">Continuations</a>
+    </div>
+    <button class="btn btn-danger btn-sm" onclick="clearHistory()">🗑 Clear All</button>
+  </div>
+</div>
+
+{% if entries %}
+<div class="flex flex-col gap-3">
+  {% for e in entries %}
+  <div class="card" style="border-left: 3px solid var(--accent)">
+    <div class="flex items-center gap-2 mb-2">
+      <span class="badge no-dot" style="font-size: 0.7rem">
+        {% if e.action_type == 'name_gen' %}🎲 Name Generator
+        {% elif e.action_type == 'tags' %}🏷 Tags
+        {% elif e.action_type == 'dialogue' %}💬 Dialogue
+        {% elif e.action_type == 'consistency' %}🔍 Consistency
+        {% elif e.action_type == 'summarize' %}📝 Summary
+        {% elif e.action_type == 'continue' %}✨ Continuation
+        {% elif e.action_type == 'continue_context' %}🧠 Context Continuation
+        {% else %}{{ e.action_type }}{% endif %}
+      </span>
+      {% if e.entity_title %}
+      <span class="text-mute text-xs">for "{{ e.entity_title }}"</span>
+      {% endif %}
+      <span class="text-mute text-xs" style="margin-left: auto">{{ e.created_at.strftime('%Y-%m-%d %H:%M') if e.created_at else '' }}</span>
+    </div>
+    {% if e.prompt_summary %}
+    <div class="text-xs text-mute mb-2" style="font-style: italic">{{ e.prompt_summary }}</div>
+    {% endif %}
+    <div class="font-serif" style="line-height: 1.6; color: var(--text); white-space: pre-wrap; max-height: 300px; overflow-y: auto">{{ e.response }}</div>
+    <div class="flex gap-1 mt-2 justify-end">
+      <button class="btn btn-ghost btn-sm" onclick="copyResponse({{ e.id }})">📋 Copy</button>
+      <button class="btn btn-ghost btn-sm text-danger" onclick="deleteEntry({{ e.id }})">🗑</button>
+    </div>
+    <script id="response-{{ e.id }}" type="text/plain">{{ e.response|e }}</script>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">✨</div>
+  <h3>No AI history yet</h3>
+  <p>Use AI features (name generator, tags, dialogue, consistency check) and results will appear here.</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function deleteEntry(id) {
+  const ok = await confirmDialog("Delete this entry?", { danger: true, okLabel: "Delete" });
+  if (!ok) return;
+  const { data } = await asmFetch(`/ai-history/${id}/delete`, { method: "POST" });
+  if (data.ok) { showToast("Deleted.", "success"); setTimeout(() => location.reload(), 500); }
+}
+
+async function clearHistory() {
+  const ok = await confirmDialog("Clear ALL AI history? This cannot be undone.", { danger: true, okLabel: "Clear All" });
+  if (!ok) return;
+  const { data } = await asmFetch("/ai-history/clear", { method: "POST" });
+  if (data.ok) { showToast("History cleared.", "success"); setTimeout(() => location.reload(), 500); }
+}
+
+function copyResponse(id) {
+  const el = document.getElementById(`response-${id}`);
+  if (el) {
+    navigator.clipboard.writeText(el.textContent).then(() => showToast("Copied.", "success", 1500));
+  }
+}
+</script>
+{% endblock %}

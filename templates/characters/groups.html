@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+{% block title %}Character Groups{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('characters.list_view') }}">Characters</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Groups</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Character Groups</h1>
+    <div class="subtitle">Drag characters between groups · click group name to edit</div>
+  </div>
+  <div class="actions">
+    <button class="btn btn-primary" onclick="openCreateGroupModal()">+ New Group</button>
+    <a href="{{ url_for('characters.graph') }}" class="btn">⦿ View in Graph</a>
+  </div>
+</div>
+
+<!-- Ungrouped characters -->
+<div class="card mb-6">
+  <div class="flex items-center justify-between mb-3">
+    <div class="card-title" style="margin: 0">Ungrouped ({{ ungrouped|length }})</div>
+    <span class="text-mute text-sm">Drag into a group below</span>
+  </div>
+  <div class="kanban-column-body" data-group-id="ungrouped" style="min-height: 60px; background: var(--bg-elev-2); border-radius: 8px; padding: 0.5rem">
+    {% for c in ungrouped %}
+    <div class="kanban-card" data-id="{{ c.id }}" data-group-id="ungrouped">
+      <div class="flex items-center gap-2">
+        <span class="avatar avatar-sm" style="background: {{ c.avatar_color }}">{{ c.name[:1]|upper }}</span>
+        <a href="{{ url_for('characters.detail', character_id=c.id) }}" style="color: var(--text); text-decoration: none">{{ c.name }}</a>
+      </div>
+    </div>
+    {% else %}
+    <div class="text-mute text-sm" style="padding: 0.5rem">All characters are in groups.</div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Groups -->
+<div class="card-grid cols-2">
+  {% for g in groups %}
+  <div class="card">
+    <div class="flex items-center justify-between mb-3">
+      <div class="flex items-center gap-2">
+        <span style="width: 14px; height: 14px; border-radius: 3px; background: {{ g.color }}"></span>
+        <strong>{{ g.name }}</strong>
+        <span class="badge no-dot" style="font-size: 0.65rem">{{ group_members[g.id]|length }}</span>
+      </div>
+      <div class="flex gap-1">
+        <button class="btn btn-ghost btn-icon btn-sm" title="Edit" onclick='editGroup("{{ g.id }}", {{ g.name|tojson }}, {{ g.description|tojson if g.description else '""' }}, "{{ g.color }}")'>✎</button>
+        <button class="btn btn-ghost btn-icon btn-sm" title="Delete" onclick='deleteGroup("{{ g.id }}", {{ g.name|tojson }})'>×</button>
+      </div>
+    </div>
+    {% if g.description %}<div class="text-sm text-dim mb-2">{{ g.description }}</div>{% endif %}
+    <div class="kanban-column-body" data-group-id="{{ g.id }}" style="min-height: 80px; background: var(--bg-elev-2); border-radius: 8px; padding: 0.5rem">
+      {% for c in group_members[g.id] %}
+      <div class="kanban-card" data-id="{{ c.id }}" data-group-id="{{ g.id }}">
+        <div class="flex items-center gap-2">
+          <span class="avatar avatar-sm" style="background: {{ c.avatar_color }}">{{ c.name[:1]|upper }}</span>
+          <a href="{{ url_for('characters.detail', character_id=c.id) }}" style="color: var(--text); text-decoration: none; flex: 1">{{ c.name }}</a>
+          <span class="badge no-dot {{ c.role }}" style="font-size: 0.6rem">{{ c.role }}</span>
+        </div>
+      </div>
+      {% else %}
+      <div class="text-mute text-sm" style="padding: 0.5rem">Empty — drag characters here</div>
+      {% endfor %}
+    </div>
+  </div>
+  {% else %}
+  <div class="empty-state" style="grid-column: span 2">
+    <div class="empty-icon">♛</div>
+    <h3>No groups yet</h3>
+    <p>Create groups like "Royal Family", "The Resistance", etc.</p>
+    <button class="btn btn-primary mt-3" onclick="openCreateGroupModal()">+ New Group</button>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  // SortableJS: drag characters between groups (and ungrouped)
+  const containers = document.querySelectorAll(".kanban-column-body");
+  containers.forEach((c) => {
+    Sortable.create(c, {
+      group: "characters",
+      animation: 150,
+      ghostClass: "sortable-ghost",
+      chosenClass: "sortable-chosen",
+      onEnd: async (evt) => {
+        const charId = evt.item.dataset.id;
+        const fromGroup = evt.from.dataset.groupId;
+        const toGroup = evt.to.dataset.groupId;
+        if (fromGroup === toGroup) return;
+        // Remove from old group
+        if (fromGroup !== "ungrouped") {
+          await asmFetch("/characters/groups", {
+            method: "POST",
+            body: { action: "remove", character_id: charId, group_id: fromGroup }
+          });
+        }
+        // Add to new group
+        if (toGroup !== "ungrouped") {
+          await asmFetch("/characters/groups", {
+            method: "POST",
+            body: { action: "assign", character_id: charId, group_id: toGroup }
+          });
+        }
+        showToast("Character moved.", "success", 1500);
+      }
+    });
+  });
+});
+
+function openCreateGroupModal() {
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal">
+      <div class="modal-header"><h3 class="modal-title">New Group</h3></div>
+      <div class="modal-body">
+        <div class="form-row">
+          <label class="form-label">Name <span class="text-danger">*</span></label>
+          <input type="text" id="gName" class="form-input" placeholder="e.g., Royal Family">
+        </div>
+        <div class="form-row">
+          <label class="form-label">Description</label>
+          <textarea id="gDesc" class="form-textarea" rows="2"></textarea>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Color</label>
+          <input type="color" id="gColor" value="#6366f1" class="form-input" style="height: 38px">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" data-act="cancel">Cancel</button>
+        <button class="btn btn-primary" data-act="ok">Create</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  backdrop.querySelector('[data-act="cancel"]').onclick = () => backdrop.remove();
+  backdrop.querySelector('[data-act="ok"]').onclick = async () => {
+    const name = document.getElementById("gName").value.trim();
+    if (!name) { showToast("Name required.", "warning"); return; }
+    const { data } = await asmFetch("/characters/groups", {
+      method: "POST",
+      body: {
+        action: "create",
+        name,
+        description: document.getElementById("gDesc").value,
+        color: document.getElementById("gColor").value,
+      }
+    });
+    backdrop.remove();
+    if (data.ok) {
+      showToast("Group created.", "success");
+      setTimeout(() => location.reload(), 500);
+    } else {
+      showToast(data.error || "Failed", "error");
+    }
+  };
+}
+
+function editGroup(gid, name, desc, color) {
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal">
+      <div class="modal-header"><h3 class="modal-title">Edit Group</h3></div>
+      <div class="modal-body">
+        <div class="form-row">
+          <label class="form-label">Name</label>
+          <input type="text" id="gName" class="form-input" value="${escapeHtml(name)}">
+        </div>
+        <div class="form-row">
+          <label class="form-label">Description</label>
+          <textarea id="gDesc" class="form-textarea" rows="2">${escapeHtml(desc || '')}</textarea>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Color</label>
+          <input type="color" id="gColor" value="${color}" class="form-input" style="height: 38px">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" data-act="cancel">Cancel</button>
+        <button class="btn btn-primary" data-act="ok">Save</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  backdrop.querySelector('[data-act="cancel"]').onclick = () => backdrop.remove();
+  backdrop.querySelector('[data-act="ok"]').onclick = async () => {
+    const { data } = await asmFetch("/characters/groups", {
+      method: "POST",
+      body: {
+        action: "update",
+        group_id: gid,
+        name: document.getElementById("gName").value,
+        description: document.getElementById("gDesc").value,
+        color: document.getElementById("gColor").value,
+      }
+    });
+    backdrop.remove();
+    if (data.ok) { showToast("Saved.", "success"); setTimeout(() => location.reload(), 500); }
+    else { showToast(data.error || "Failed", "error"); }
+  };
+}
+
+async function deleteGroup(gid, name) {
+  const ok = await confirmDialog(`Delete group '${name}'? Characters will be ungrouped (not deleted).`, { danger: true, okLabel: "Delete" });
+  if (!ok) return;
+  const { data } = await asmFetch("/characters/groups", {
+    method: "POST", body: { action: "delete", group_id: gid }
+  });
+  if (data.ok) { showToast("Group deleted.", "success"); setTimeout(() => location.reload(), 500); }
+  else { showToast(data.error || "Failed", "error"); }
+}
+</script>
+{% endblock %}

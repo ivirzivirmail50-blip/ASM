@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+{% block title %}Import Center{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Import Center</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Import Center</h1>
+    <div class="subtitle">Bulk import chapters, characters, world entries from files</div>
+  </div>
+</div>
+
+<!-- Import type selector -->
+<div class="card mb-4">
+  <div class="card-title mb-3">What do you want to import?</div>
+  <div class="card-grid cols-3">
+    <label class="card" style="cursor:pointer; border: 2px solid var(--border); text-align:center; padding: 1.5rem"
+           onclick="selectImportType('chapter', this)">
+      <div style="font-size: 2rem">▤</div>
+      <div style="font-weight: 600; margin-top: 0.5rem">Chapters</div>
+      <div class="text-xs text-mute mt-1">TXT, MD, DOCX, PDF, RTF, ODT, HTML</div>
+    </label>
+    <label class="card" style="cursor:pointer; border: 2px solid var(--border); text-align:center; padding: 1.5rem"
+           onclick="selectImportType('world_entry', this)">
+      <div style="font-size: 2rem">🌍</div>
+      <div style="font-weight: 600; margin-top: 0.5rem">World Entries</div>
+      <div class="text-xs text-mute mt-1">Lore, Locations, Factions, etc.</div>
+    </label>
+    <label class="card" style="cursor:pointer; border: 2px solid var(--border); text-align:center; padding: 1.5rem"
+           onclick="selectImportType('character', this)">
+      <div style="font-size: 2rem">♛</div>
+      <div style="font-weight: 600; margin-top: 0.5rem">Characters</div>
+      <div class="text-xs text-mute mt-1">JSON format (from export or manual)</div>
+    </label>
+  </div>
+</div>
+
+<!-- Options (changes based on type) -->
+<div class="card mb-4 hidden" id="optionsCard">
+  <div id="optionsContent"></div>
+</div>
+
+<!-- Dropzone -->
+<div class="card mb-4 hidden" id="dropzoneCard">
+  <div id="dropzone"
+       style="border: 2px dashed var(--border-strong); border-radius: 12px;
+              padding: 3rem 1rem; text-align: center; cursor: pointer;
+              transition: all 0.2s ease; min-height: 200px;">
+    <div style="font-size: 3rem; opacity: 0.4">↥</div>
+    <div style="font-weight: 600; margin-top: 0.5rem">Drop files here or click to browse</div>
+    <div class="text-mute text-sm mt-2" id="dropzoneHint">Multiple files OK</div>
+    <input type="file" id="fileInput" style="display: none" multiple>
+  </div>
+
+  <div id="fileList" class="mt-4" style="display: none">
+    <div class="card-title mb-2">Files to import (<span id="fileCount">0</span>)</div>
+    <div id="fileItems" class="flex flex-col gap-1"></div>
+    <div class="flex justify-end gap-2 mt-3">
+      <button class="btn" onclick="clearFiles()">Clear</button>
+      <button class="btn btn-primary" id="importBtn" onclick="startImport()">↥ Import All</button>
+    </div>
+  </div>
+  <div id="results" class="mt-4" style="display: none"></div>
+</div>
+
+<!-- JSON character import help -->
+<div class="card hidden" id="charHelp">
+  <div class="card-title mb-2">Character JSON Format</div>
+  <p class="text-sm text-dim">Each file should be a JSON array of character objects. Example:</p>
+  <pre style="background: var(--bg-elev-2); padding: 1rem; border-radius: 8px; font-size: 0.75rem; overflow-x: auto">[
+  {
+    "name": "Elara Vance",
+    "role": "protagonist",
+    "age": "27",
+    "gender": "Female",
+    "aliases": ["El", "The Veiled One"],
+    "physical": "Tall, raven-black hair, violet eyes",
+    "psychology": "Methodical, curious, fears loss of control",
+    "background": "Raised in Hollowmere by her mother",
+    "philosophy": "Knowledge must be earned",
+    "voice": "Measured sentences, formal when stressed"
+  }
+]</pre>
+  <p class="text-xs text-mute mt-2">Required: name. All other fields optional. You can also export characters as JSON from a character's detail page and re-import here.</p>
+</div>
+
+<!-- Migration help -->
+<div class="card mt-4" style="border-left: 3px solid var(--accent)">
+  <div class="card-title mb-2">📦 Migrating from a previous version?</div>
+  <p class="text-sm text-dim mb-2">If you have data from an older version of Absolute Story Manager:</p>
+  <ol class="text-sm" style="color: var(--text-dim); padding-left: 1.5rem; line-height: 1.8">
+    <li><strong>JSON Export/Import</strong> — Go to Settings → Import/Export → Export JSON. In the new version, use Import JSON to restore everything.</li>
+    <li><strong>Backup Restore</strong> — Go to Settings → Backup → Create Backup (creates a ZIP). In the new version, Settings → Backup → Restore from backup.</li>
+    <li><strong>Manual File Import</strong> — Use this Import Center to re-upload your chapter files (TXT, DOCX, etc.) and world entry files.</li>
+  </ol>
+  <div class="text-xs text-mute mt-2">Note: JSON Export/Import preserves everything (chapters, characters, world, plans, settings). Backup Restore replaces the entire database. Manual import only imports file contents.</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let _importType = "";
+let selectedFiles = [];
+
+function selectImportType(type, cardEl) {
+  _importType = type;
+  // Visual
+  document.querySelectorAll(".card[onclick^='selectImportType']").forEach(c => {
+    c.style.borderColor = "var(--border)";
+    c.style.background = "";
+  });
+  cardEl.style.borderColor = "var(--accent)";
+  cardEl.style.background = "var(--accent-light)";
+
+  // Show options + dropzone
+  document.getElementById("optionsCard").classList.remove("hidden");
+  document.getElementById("dropzoneCard").classList.remove("hidden");
+
+  // Build options
+  const opts = document.getElementById("optionsContent");
+  const hint = document.getElementById("dropzoneHint");
+  const fileInput = document.getElementById("fileInput");
+
+  if (type === "chapter") {
+    opts.innerHTML = `
+      <div class="card-grid cols-2">
+        <div class="form-row">
+          <label class="form-label">Chapter status</label>
+          <select id="impStatus" class="form-select">
+            <option value="draft">Draft</option>
+            <option value="revised">Revised</option>
+            <option value="final">Final</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Info</label>
+          <div class="text-sm text-dim" style="padding-top: 0.55rem">Each file becomes a separate chapter. Filename = title. Originals saved in data/raw/.</div>
+        </div>
+      </div>`;
+    hint.textContent = "TXT, MD, DOCX, PDF, RTF, ODT, HTML, CSV — max 25 MB each";
+    fileInput.accept = ".txt,.md,.markdown,.docx,.pdf,.rtf,.odt,.html,.htm,.csv";
+  } else if (type === "world_entry") {
+    opts.innerHTML = `
+      <div class="card-grid cols-2">
+        <div class="form-row">
+          <label class="form-label">Entry type</label>
+          <select id="impWorldType" class="form-select">
+            <option value="lore">Lore</option>
+            <option value="location">Location</option>
+            <option value="faction">Faction</option>
+            <option value="glossary">Glossary</option>
+            <option value="magic_system">Magic System</option>
+            <option value="species">Species</option>
+            <option value="culture">Culture</option>
+            <option value="technology">Technology</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Info</label>
+          <div class="text-sm text-dim" style="padding-top: 0.55rem">Each file becomes a world entry. Filename = entry name. PDF lore files supported.</div>
+        </div>
+      </div>`;
+    hint.textContent = "TXT, MD, DOCX, PDF, RTF, ODT, HTML — max 25 MB each";
+    fileInput.accept = ".txt,.md,.markdown,.docx,.pdf,.rtf,.odt,.html,.htm";
+  } else if (type === "character") {
+    opts.innerHTML = `
+      <div class="form-row">
+        <label class="form-label">Info</label>
+        <div class="text-sm text-dim" style="padding-top: 0.55rem">Upload JSON files containing character data. See format example below.</div>
+      </div>`;
+    hint.textContent = "JSON files only — each file can contain one or more characters";
+    fileInput.accept = ".json,application/json";
+    document.getElementById("charHelp").classList.remove("hidden");
+  }
+  if (type !== "character") {
+    document.getElementById("charHelp").classList.add("hidden");
+  }
+}
+
+// Dropzone setup
+const drop = document.getElementById("dropzone");
+const input = document.getElementById("fileInput");
+drop.addEventListener("click", () => input.click());
+drop.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  drop.style.background = "var(--accent-light)";
+  drop.style.borderColor = "var(--accent)";
+});
+drop.addEventListener("dragleave", () => {
+  drop.style.background = "";
+  drop.style.borderColor = "";
+});
+drop.addEventListener("drop", (e) => {
+  e.preventDefault();
+  drop.style.background = "";
+  drop.style.borderColor = "";
+  handleFiles(e.dataTransfer.files);
+});
+input.addEventListener("change", () => handleFiles(input.files));
+
+function handleFiles(files) {
+  for (const f of files) {
+    if (f.size > 25 * 1024 * 1024) {
+      showToast(`${f.name}: too large (max 25 MB)`, "error");
+      continue;
+    }
+    selectedFiles.push(f);
+  }
+  renderFileList();
+}
+
+function renderFileList() {
+  const list = document.getElementById("fileItems");
+  const count = document.getElementById("fileCount");
+  const container = document.getElementById("fileList");
+  if (!selectedFiles.length) {
+    container.style.display = "none";
+    return;
+  }
+  container.style.display = "block";
+  count.textContent = selectedFiles.length;
+  list.innerHTML = selectedFiles.map((f, i) => `
+    <div class="flex items-center gap-3" style="padding: 0.5rem; background: var(--bg-elev-2); border-radius: 6px">
+      <div style="font-size: 1.2rem">📄</div>
+      <div class="grow">
+        <div style="font-weight: 500">${escapeHtml(f.name)}</div>
+        <div class="text-mute text-xs">${(f.size / 1024).toFixed(1)} KB</div>
+      </div>
+      <button class="btn btn-ghost btn-icon btn-sm" onclick="removeFile(${i})">×</button>
+    </div>
+  `).join("");
+}
+
+function removeFile(idx) {
+  selectedFiles.splice(idx, 1);
+  renderFileList();
+}
+
+function clearFiles() {
+  selectedFiles = [];
+  input.value = "";
+  renderFileList();
+  document.getElementById("results").style.display = "none";
+}
+
+async function startImport() {
+  if (!selectedFiles.length) {
+    showToast("No files selected.", "warning");
+    return;
+  }
+  const btn = document.getElementById("importBtn");
+  btn.disabled = true;
+  btn.textContent = "Importing...";
+
+  if (_importType === "character") {
+    // Character import — read each JSON file and POST to /characters/new
+    let imported = 0, failed = 0;
+    const results = [];
+    for (const f of selectedFiles) {
+      try {
+        const text = await f.text();
+        const chars = JSON.parse(text);
+        const arr = Array.isArray(chars) ? chars : [chars];
+        for (const c of arr) {
+          const fd = new FormData();
+          for (const [k, v] of Object.entries(c)) {
+            if (k === "aliases" || k === "philosophy_quotes") {
+              fd.append(k, Array.isArray(v) ? v.join(",") : v);
+            } else {
+              fd.append(k, v);
+            }
+          }
+          fd.append("csrf_token", getCsrfToken());
+          const res = await fetch("/characters/new", {
+            method: "POST",
+            headers: { "X-CSRFToken": getCsrfToken() },
+            body: fd
+          });
+          let data;
+          try { data = await res.json(); } catch { data = { ok: false }; }
+          if (data.ok) { imported++; results.push({ name: c.name, ok: true }); }
+          else { failed++; results.push({ name: c.name || f.name, ok: false, error: data.error }); }
+        }
+      } catch (err) {
+        failed++;
+        results.push({ name: f.name, ok: false, error: err.message });
+      }
+    }
+    showResults(imported, failed, results);
+  } else {
+    // Chapter or world entry import — use bulk-import endpoint
+    const fd = new FormData();
+    selectedFiles.forEach(f => fd.append("files", f, f.name));
+    fd.append("import_as", _importType);
+    fd.append("world_type", _importType === "world_entry" ? (document.getElementById("impWorldType")?.value || "lore") : "lore");
+    fd.append("status", document.getElementById("impStatus")?.value || "draft");
+    fd.append("csrf_token", getCsrfToken());
+
+    try {
+      const res = await fetch("/chapters/bulk-import", {
+        method: "POST",
+        headers: { "X-CSRFToken": getCsrfToken() },
+        body: fd
+      });
+      let data;
+      try { data = await res.json(); } catch { data = { ok: false, error: "Server error" }; }
+      showResults(data.imported || 0, data.failed || 0, data.results || [], data.errors || []);
+    } catch (err) {
+      showResults(0, selectedFiles.length, [], [{ filename: "all", error: err.message }]);
+    }
+  }
+
+  btn.disabled = false;
+  btn.textContent = "↥ Import All";
+}
+
+function showResults(imported, failed, results, errors) {
+  const div = document.getElementById("results");
+  div.style.display = "block";
+  let html = "";
+  if (imported > 0) {
+    html += `<div class="card-title mb-2" style="color: var(--success)">✓ ${imported} item(s) imported successfully</div>`;
+    html += '<div class="flex flex-col gap-1 mb-3">';
+    for (const r of results.filter(r => r.ok)) {
+      html += `<a href="${r.url || '#'}" class="flex items-center gap-2" style="padding: 0.4rem; background: var(--success-soft); border-radius: 6px; text-decoration: none">
+        <span style="color: var(--success)">✓</span>
+        <span style="color: var(--text); flex: 1">${escapeHtml(r.title || r.name || '')}</span>
+      </a>`;
+    }
+    html += '</div>';
+  }
+  if (failed > 0) {
+    html += `<div class="card-title mb-2" style="color: var(--danger)">✗ ${failed} item(s) failed</div>`;
+    html += '<div class="flex flex-col gap-1">';
+    const allErrors = [...(errors || []), ...results.filter(r => !r.ok).map(r => ({ filename: r.name, error: r.error }))];
+    for (const e of allErrors) {
+      html += `<div class="flex items-center gap-2" style="padding: 0.4rem; background: var(--danger-soft); border-radius: 6px">
+        <span style="color: var(--danger)">✗</span>
+        <span style="color: var(--text); flex: 1">${escapeHtml(e.filename || '')}</span>
+        <span class="text-mute text-xs">${escapeHtml(e.error || '')}</span>
+      </div>`;
+    }
+    html += '</div>';
+  }
+  div.innerHTML = html;
+  if (imported > 0) {
+    showToast(`${imported} item(s) imported!`, "success");
+    selectedFiles = [];
+    renderFileList();
+  }
+}
+</script>
+{% endblock %}

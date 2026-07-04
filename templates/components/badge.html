@@ -1,0 +1,14 @@
+{#
+  Reusable badge component — colored dot + text.
+  Usage:
+    {% set badge_text = "draft" %}
+    {% set badge_variant = "draft" %}
+    {% set badge_dot = true %}
+    {% include "components/badge.html" %}
+  Variants: draft, revised, final, idea, planned, writing, draft_done,
+            success, warning, danger, info
+#}
+<span class="badge {{ '' if badge_dot|default(true) else 'no-dot' }} {{ badge_variant|default('') }}"
+      {% if badge_title %}title="{{ badge_title }}"{% endif %}>
+  {{ badge_text|default('') }}
+</span>

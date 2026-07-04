@@ -1,0 +1,13 @@
+# ASM vendor manifest — name | version | source_url | local_path | sha256
+tailwind | 3.4.16 | https://cdn.tailwindcss.com/3.4.16 | static/vendor/tailwind/tailwind.min.css | 3f81aa7f6ecdb1acc14c202e513dfee00b6c7703cd81ce1be25bf5215a92e8cb
+alpine | ? | https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js | static/vendor/alpine/alpine.min.js | 358d9afbb1ab5befa2f48061a30776e5bcd7707f410a606ba985f98bc3b1c034
+sortablejs | ? | https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js | static/vendor/sortablejs/Sortable.min.js | 72aa2c4f9f7cb2b8b3268052d6d2daa9d952f209b7fc5cc247ff9e1153db1f16
+vis-network | ? | https://cdn.jsdelivr.net/npm/vis-network@9.1.9/standalone/umd/vis-network.min.js | static/vendor/vis-network/vis-network.min.js | f53f833ddb9bf97efe856bb0637d4fe88f39e39999c7e94a4b8afc8de8a1a2e5
+vis-network | ? | https://cdn.jsdelivr.net/npm/vis-network@9.1.9/styles/vis-network.min.css | static/vendor/vis-network/vis-network.min.css | a074f8f4c748b7ccb375a2ae58d2de1881b25a26d0e419a9e750e7d860ad18e2
+easymde | ? | https://cdn.jsdelivr.net/npm/easymde@2.18.0/dist/easymde.min.css | static/vendor/easymde/easymde.min.css | 8a148c947f7e63250d8fb8d97e030b6fef6e02480ea08c0acfacb11618ac11f6
+easymde | ? | https://cdn.jsdelivr.net/npm/easymde@2.18.0/dist/easymde.min.js | static/vendor/easymde/easymde.min.js | 42c578c29ae613807f43c292e23365f2f676071450a8f09314668a27720ccee3
+chartjs | ? | https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js | static/vendor/chartjs/chart.umd.min.js | b38076762f7363bc9e912b68b8e034826798db5df26bb61f000ec2e7a3137bc7
+fonts | ? | https://cdn.jsdelivr.net/fontsource/fonts/inter@latest/latin-400-normal.woff2 | static/vendor/fonts/inter.woff2 | 8909904ab6c872eb994093482a88a28eca2cd95912d7b6fecd72103b0dc07edc
+fonts | ? | https://cdn.jsdelivr.net/fontsource/fonts/inter@latest/latin-600-normal.woff2 | static/vendor/fonts/inter-bold.woff2 | f9a06e79cd3a2a20951c0f0e28f66dd0e6d3fda73911d640a2125c8fcb78f21a
+fonts | ? | https://cdn.jsdelivr.net/fontsource/fonts/noto-serif@latest/latin-400-normal.woff2 | static/vendor/fonts/noto-serif.woff2 | 4c0cbe3eec50d260754d681c17ee2af49a43d7fd93ce42877f665fcb1a889b87
+fonts | ? | https://cdn.jsdelivr.net/fontsource/fonts/jetbrains-mono@latest/latin-400-normal.woff2 | static/vendor/fonts/jetbrains-mono.woff2 | 14425ba9c695763c1547f48a206b7aa60350a33ae23de09f0407877f3fcd89eb

@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+{% block title %}{{ chapter.title }}{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('chapters.list_view') }}">Chapters</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">{{ chapter.title }}</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="flex items-center gap-3 mb-1">
+      <span class="text-mute text-sm">Chapter {{ chapter.sort_order }}</span>
+      <span class="badge {{ chapter.status }}">{{ chapter.status }}</span>
+    </div>
+    <h1>{{ chapter.title }}</h1>
+    <div class="subtitle">
+      {{ chapter.word_count }} words · ~{{ (chapter.word_count / 250) | int }} min read
+      · {{ versions|length }} version{{ 's' if versions|length != 1 else '' }}
+      {% if chapter.updated_at %} · updated {{ chapter.updated_at.strftime('%Y-%m-%d %H:%M') }}{% endif %}
+    </div>
+  </div>
+  <div class="actions">
+    {% if prev_ch %}
+    <a href="{{ url_for('chapters.detail', chapter_id=prev_ch.id) }}" class="btn btn-ghost" title="{{ prev_ch.title }}">← Prev</a>
+    {% endif %}
+    {% if next_ch %}
+    <a href="{{ url_for('chapters.detail', chapter_id=next_ch.id) }}" class="btn btn-ghost" title="{{ next_ch.title }}">Next →</a>
+    {% endif %}
+    <a href="{{ url_for('chapters.edit', chapter_id=chapter.id) }}" class="btn">✎ Edit</a>
+    <a href="{{ url_for('beta.reader', chapter_id=chapter.id) }}" class="btn">📖 Beta Reader</a>
+    {% if settings and settings.get('ai.enabled') %}
+    <button class="btn" onclick="aiSummarize()" title="✨ AI: Generate synopsis">✨ Synopsis</button>
+    <button class="btn" onclick="aiSuggestTags()" title="✨ AI: Suggest tags">✨ Tags</button>
+    {% endif %}
+    <a href="{{ url_for('chapters.versions', chapter_id=chapter.id) }}" class="btn">⌚ Versions</a>
+    <div class="relative" style="display: inline-block">
+      <button class="btn" onclick="document.getElementById('exportMenu').classList.toggle('hidden')">↧ Export ▾</button>
+      <div id="exportMenu" class="hidden absolute card" style="right: 0; min-width: 160px; padding: 0.4rem; z-index: 20">
+        <a class="btn btn-ghost btn-sm w-full" style="justify-content: flex-start" href="{{ url_for('chapters.export', chapter_id=chapter.id, fmt='txt') }}">TXT</a>
+        <a class="btn btn-ghost btn-sm w-full" style="justify-content: flex-start" href="{{ url_for('chapters.export', chapter_id=chapter.id, fmt='md') }}">Markdown</a>
+        <a class="btn btn-ghost btn-sm w-full" style="justify-content: flex-start" href="{{ url_for('chapters.export', chapter_id=chapter.id, fmt='html') }}">HTML</a>
+        <a class="btn btn-ghost btn-sm w-full" style="justify-content: flex-start" href="{{ url_for('chapters.export', chapter_id=chapter.id, fmt='docx') }}">DOCX</a>
+        <a class="btn btn-ghost btn-sm w-full" style="justify-content: flex-start" href="{{ url_for('chapters.export', chapter_id=chapter.id, fmt='pdf') }}">PDF</a>
+        <a class="btn btn-ghost btn-sm w-full" style="justify-content: flex-start" href="{{ url_for('chapters.export', chapter_id=chapter.id, fmt='json') }}">JSON</a>
+      </div>
+    </div>
+    <button class="btn btn-danger" onclick="deleteChapter()">🗑 Delete</button>
+  </div>
+</div>
+
+<div class="card-grid cols-3 mb-6">
+  <!-- Main content -->
+  <div class="card" style="grid-column: span 2">
+    {% if chapter.synopsis %}
+    <div class="card-subtitle mb-3" style="font-style: italic">Synopsis: {{ chapter.synopsis }}</div>
+    {% endif %}
+    <div class="font-serif" style="font-size: 1.05rem; line-height: 1.85; white-space: pre-wrap; color: var(--text)">{{ chapter.content }}</div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="flex flex-col gap-4">
+    <!-- Metadata -->
+    <div class="card">
+      <div class="card-title mb-3">Metadata</div>
+      <div class="text-sm" style="color: var(--text-dim)">
+        <div class="flex justify-between mb-2">
+          <span class="text-mute">Status</span>
+          <span class="badge {{ chapter.status }}">{{ chapter.status }}</span>
+        </div>
+        <div class="flex justify-between mb-2">
+          <span class="text-mute">Words</span>
+          <strong>{{ chapter.word_count }}</strong>
+        </div>
+        {% if chapter.target_word_count %}
+        <div class="flex justify-between mb-2">
+          <span class="text-mute">Target</span>
+          <strong>{{ chapter.target_word_count }}</strong>
+        </div>
+        {% set tpct = (chapter.word_count / chapter.target_word_count * 100) | int %}
+        <div class="progress mb-2" style="height: 6px">
+          <div class="progress-bar {{ 'danger' if tpct < 25 else ('warning' if tpct < 75 else 'success') }}"
+               style="width: {{ [tpct, 100] | min }}%"></div>
+        </div>
+        {% endif %}
+        <div class="flex justify-between mb-2">
+          <span class="text-mute">Created</span>
+          <span>{{ chapter.created_at.strftime('%Y-%m-%d') if chapter.created_at else '-' }}</span>
+        </div>
+        <div class="flex justify-between mb-2">
+          <span class="text-mute">Updated</span>
+          <span>{{ chapter.updated_at.strftime('%Y-%m-%d %H:%M') if chapter.updated_at else '-' }}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-mute">Versions</span>
+          <strong>{{ versions|length }}</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tags -->
+    {% if tags %}
+    <div class="card">
+      <div class="card-title mb-2">Tags</div>
+      <div class="flex flex-wrap gap-1">
+        {% for t in tags %}
+        <span class="badge no-dot">{{ t }}</span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Characters -->
+    {% if characters %}
+    <div class="card">
+      <div class="card-title mb-2">Characters in this chapter</div>
+      <div class="flex flex-col gap-2">
+        {% for c in characters %}
+        <a href="{{ url_for('characters.detail', character_id=c.id) }}"
+           class="flex items-center gap-2" style="padding: 0.3rem; border-radius: 6px; text-decoration: none">
+          <span class="avatar avatar-sm" style="background: {{ c.avatar_color }}">{{ c.name[:1]|upper }}</span>
+          <span style="color: var(--text)">{{ c.name }}</span>
+          <span class="badge no-dot {{ c.role }}" style="margin-left: auto">{{ c.role }}</span>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Version sparkline -->
+    {% if versions %}
+    <div class="card">
+      <div class="card-title mb-2">Version history</div>
+      <div class="text-sm" style="color: var(--text-dim)">
+        Latest: <strong>v{{ versions[0].version_number }}</strong> · {{ versions[0].source }}
+      </div>
+      <div class="flex gap-1 mt-2" style="height: 30px">
+        {% for v in versions[:20] %}
+        <a href="{{ url_for('chapters.versions', chapter_id=chapter.id) }}#v{{ v.version_number }}"
+           class="grow" style="background: var(--accent); opacity: {{ 0.3 + (v.word_count / (versions|map(attribute='word_count')|max or 1)) * 0.7 }}; border-radius: 2px; min-width: 3px"
+           title="v{{ v.version_number }}: {{ v.word_count }} words ({{ v.source }})"></a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Actions -->
+    <div class="card">
+      <div class="card-title mb-2">Actions</div>
+      <div class="flex flex-col gap-2">
+        <a href="{{ url_for('chapters.edit', chapter_id=chapter.id) }}" class="btn btn-sm">✎ Edit content</a>
+        <label class="btn btn-sm" style="cursor: pointer">↥ Re-upload
+          <input type="file" style="display: none" onchange="reuploadChapter(this)">
+        </label>
+        <button class="btn btn-sm" onclick="splitChapterModal()">⤲ Split chapter</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function deleteChapter() {
+  const ok = await confirmDialog(`Delete chapter "{{ chapter.title|e }}"? You can undo within 10 seconds.`, { danger: true, okLabel: "Delete" });
+  if (!ok) return;
+  const { data } = await asmFetch(`/chapters/{{ chapter.id }}/delete`, { method: "POST" });
+  if (data.ok) {
+    showToast("Chapter deleted.", "success");
+    if (data.undoable && data.label) {
+      showUndoToast(data.label, () => {
+        asmFetch("/undo", { method: "POST", body: {} }).then(({ data: u }) => {
+          if (u.ok) { showToast("Restored.", "success"); setTimeout(() => location.href = "{{ url_for('chapters.detail', chapter_id=chapter.id) }}", 500); }
+        });
+      });
+    }
+    setTimeout(() => window.location.href = data.url, 800);
+  } else {
+    showToast(data.error || "Failed", "error");
+  }
+}
+
+async function reuploadChapter(input) {
+  if (!input.files.length) return;
+  const fd = new FormData();
+  fd.append("file", input.files[0], input.files[0].name);
+  const res = await fetch(`/chapters/{{ chapter.id }}/reupload`, {
+    method: "POST",
+    headers: { "X-CSRFToken": getCsrfToken() },
+    body: fd
+  });
+  const data = await res.json();
+  if (data.ok) {
+    showToast("Re-uploaded.", "success");
+    setTimeout(() => location.reload(), 500);
+  } else {
+    showToast(data.error || "Failed", "error");
+  }
+}
+
+async function splitChapterModal() {
+  const ok = await confirmDialog("Split this chapter at paragraph N. Enter N in the next prompt.", { okLabel: "Continue" });
+  if (!ok) return;
+  const n = prompt("Split at paragraph (1-indexed):", "1");
+  if (!n) return;
+  const { data } = await asmFetch(`/chapters/{{ chapter.id }}/split`, {
+    method: "POST",
+    body: { at: parseInt(n) }
+  });
+  if (data.ok) {
+    showToast("Chapter split.", "success");
+    setTimeout(() => location.reload(), 500);
+  } else {
+    showToast(data.error || "Failed", "error");
+  }
+}
+</script>
+
+<script>
+async function aiSummarize() {
+  showToast("Generating synopsis…", "info", 0);
+  const { data } = await asmFetch("/ai/summarize", {
+    method: "POST",
+    body: { text: `{{ chapter.content|e }}`.slice(0, 4000) }
+  });
+  if (data.ok) {
+    showAIResultModal("✨ AI Synopsis", data.response, "Copy to Synopsis", (text) => {
+      // Navigate to edit page and pre-fill synopsis
+      window.location.href = `/chapters/{{ chapter.id }}/edit?synopsis=${encodeURIComponent(text)}`;
+    });
+  } else {
+    showToast(data.error || "AI failed", "error");
+  }
+}
+
+async function aiSuggestTags() {
+  showToast("Suggesting tags…", "info", 0);
+  const { data } = await asmFetch("/ai/suggest-tags", {
+    method: "POST",
+    body: { text: `{{ chapter.content|e }}`.slice(0, 2000) }
+  });
+  if (data.ok && data.tags && data.tags.length) {
+    showAIResultModal("✨ Suggested Tags", data.tags.join(", "), "Copy", (text) => {
+      navigator.clipboard.writeText(text);
+      showToast("Tags copied to clipboard.", "success");
+    });
+  } else {
+    showToast(data.error || "No tags suggested", "error");
+  }
+}
+
+function showAIResultModal(title, content, actionLabel, onAction) {
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal">
+      <div class="modal-header"><h3 class="modal-title">${title}</h3></div>
+      <div class="modal-body">
+        <div class="font-serif" style="line-height: 1.7; color: var(--text); white-space: pre-wrap">${escapeHtml(content)}</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" data-act="close">Close</button>
+        <button class="btn btn-primary" data-act="action">${actionLabel}</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  backdrop.querySelector('[data-act="close"]').onclick = () => backdrop.remove();
+  backdrop.querySelector('[data-act="action"]').onclick = () => {
+    if (onAction) onAction(content);
+    backdrop.remove();
+  };
+  backdrop.addEventListener("click", (e) => { if (e.target === backdrop) backdrop.remove(); });
+}
+</script>
+
+{% endblock %}
+

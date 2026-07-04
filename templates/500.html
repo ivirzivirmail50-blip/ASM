@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}500 — Server Error{% endblock %}
+{% block content %}
+<div class="empty-state" style="padding: 6rem 1rem">
+  <div class="empty-icon" style="font-size: 4rem; opacity: 0.3; color: var(--danger)">500</div>
+  <h1 style="margin: 1rem 0 0.5rem">Something went wrong</h1>
+  {% if message %}
+  <p>{{ message }}</p>
+  {% else %}
+  <p>An unexpected error occurred.</p>
+  {% endif %}
+  {% if request_id %}
+  <p class="text-xs text-mute">Request ID: <code>{{ request_id }}</code></p>
+  {% endif %}
+  <div class="flex justify-center gap-2 mt-4">
+    <button class="btn" onclick="location.reload()">↻ Retry</button>
+    <a href="{{ url_for('dashboard.index') }}" class="btn btn-primary">← Dashboard</a>
+  </div>
+</div>
+{% endblock %}

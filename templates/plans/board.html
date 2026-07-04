@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}Kanban Board{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('plans.board') }}">Plans</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Kanban</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Kanban Board</h1>
+    <div class="subtitle">Drag cards between columns or reorder within a column · dependency arrows shown in blue</div>
+  </div>
+  <div class="actions">
+    <a href="{{ url_for('plans.corkboard') }}" class="btn">⊟ Corkboard</a>
+    <a href="{{ url_for('plans.outline') }}" class="btn">≣ Outline</a>
+    <a href="{{ url_for('plans.timeline') }}" class="btn">⌗ Timeline</a>
+    <a href="{{ url_for('plans.new') }}" class="btn btn-primary">+ New Plan Item</a>
+  </div>
+</div>
+
+<!-- Dependency legend -->
+{% set has_deps = [] %}
+{% for p in all_plans if p.depends_on_id %}{% set _ = has_deps.append(1) %}{% endfor %}
+{% if has_deps %}
+<div class="card mb-4" style="padding: 0.5rem 1rem; font-size: 0.8rem;">
+  <span class="text-mute">Dependency arrows:</span>
+  <span style="color: var(--accent)">──→</span> <span class="text-dim">blocker → dependent</span>
+  <span style="margin-left: 1rem; color: var(--warning)">⚠</span> <span class="text-dim">status conflict (dependent ahead of blocker)</span>
+</div>
+{% endif %}
+
+<div class="kanban-board relative" id="kanbanBoard" style="position: relative">
+<!-- SVG overlay for dependency arrows -->
+<svg id="depArrows" style="position: absolute; inset: 0; pointer-events: none; z-index: 1; width: 100%; height: 100%"></svg>
+  {% for col in statuses %}
+  <div class="kanban-column" data-column="{{ col }}">
+    <div class="kanban-column-header">
+      <span>{{ col|replace('_', ' ')|title }}</span>
+      <span class="count">{{ columns.get(col, [])|length }}</span>
+    </div>
+    <div class="kanban-column-body" data-column="{{ col }}">
+      {% for p in columns.get(col, []) %}
+      <div class="kanban-card {{ 'overdue' if p.id in overdue_ids else '' }}" data-id="{{ p.id }}"
+           {% if p.depends_on_id %}data-depends-on="{{ p.depends_on_id }}"{% endif %}
+           style="{{ 'border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger)' if p.id in overdue_ids else '' }}">
+        <div class="card-title-row">
+          <a href="{{ url_for('plans.detail', plan_id=p.id) }}" style="color: var(--text); text-decoration: none">
+            <strong>{{ p.title }}</strong>
+          </a>
+        </div>
+        {% if p.description %}
+        <div class="text-xs text-mute" style="margin-bottom: 0.4rem; line-height: 1.4">{{ p.description[:80] }}{% if p.description|length > 80 %}…{% endif %}</div>
+        {% endif %}
+        <div class="flex items-center gap-2 flex-wrap">
+          {% if p.effort_estimate %}
+          <span class="badge no-dot" style="font-size: 0.65rem" title="Effort estimate">
+            ~{{ p.effort_estimate }}w
+            {% set actual = actual_words.get(p.id, 0) %}
+            {% if actual %}<span style="opacity: 0.7"> / {{ actual }}w</span>{% endif %}
+          </span>
+          {% endif %}
+          {% if p.deadline %}
+          <span class="badge no-dot {{ 'danger' if p.id in overdue_ids else '' }}" style="font-size: 0.65rem">
+            📅 {{ p.deadline }}{% if p.id in overdue_ids %} ⚠{% endif %}
+          </span>
+          {% endif %}
+          {% if p.event_type %}<span class="badge no-dot" style="font-size: 0.65rem">{{ p.event_type|replace('_',' ') }}</span>{% endif %}
+          {% if p.track %}<span class="badge no-dot" style="font-size: 0.65rem">☰ {{ p.track }}</span>{% endif %}
+        </div>
+        <!-- Dependency warnings -->
+        {% set warnings = dep_warnings.get(p.id, []) %}
+        {% if warnings %}
+        <div class="mt-2" style="background: var(--warning-soft); border-radius: 4px; padding: 0.3rem 0.5rem">
+          {% for w in warnings %}
+          <div class="text-xs" style="color: var(--warning)">⚠ {{ w }}</div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        <!-- Subtasks progress -->
+        {% set counts = subtask_counts.get(p.id, (0, 0)) %}
+        {% if counts[1] > 0 %}
+        <div class="mt-2">
+          <div class="text-xs text-mute mb-1">{{ counts[0] }}/{{ counts[1] }} subtasks</div>
+          <div class="progress" style="height: 4px">
+            <div class="progress-bar success" style="width: {{ (counts[0] / counts[1] * 100) | int }}%"></div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/kanban.js') }}"></script>
+<script>
+// Compute today for deadline coloring
+const today = new Date().toISOString().slice(0, 10);
+
+// ---- Dependency arrows ----
+function drawDependencyArrows() {
+  const board = document.getElementById("kanbanBoard");
+  const svg = document.getElementById("depArrows");
+  if (!board || !svg) return;
+  svg.innerHTML = "";
+  const boardRect = board.getBoundingClientRect();
+
+  // For each card with data-depends-on, draw a line from blocker to dependent
+  const cards = board.querySelectorAll(".kanban-card[data-depends-on]");
+  cards.forEach(card => {
+    const depId = card.dataset.dependsOn;
+    const blocker = board.querySelector(`.kanban-card[data-id="${depId}"]`);
+    if (!blocker) return;
+
+    const cardRect = card.getBoundingClientRect();
+    const blockerRect = blocker.getBoundingClientRect();
+
+    // Coordinates relative to board
+    const x1 = blockerRect.left - boardRect.left + blockerRect.width / 2;
+    const y1 = blockerRect.bottom - boardRect.top;
+    const x2 = cardRect.left - boardRect.left + cardRect.width / 2;
+    const y2 = cardRect.top - boardRect.top;
+
+    // Determine color: warning if dependency conflict
+    const warnings = {{ dep_warnings|tojson }};
+    const hasWarning = warnings[card.dataset.id] && warnings[card.dataset.id].length > 0;
+    const color = hasWarning ? "var(--warning)" : "var(--accent)";
+
+    // Build SVG path (curved)
+    const midY = (y1 + y2) / 2;
+    const path = `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
+
+    const pathEl = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    pathEl.setAttribute("d", path);
+    pathEl.setAttribute("stroke", color);
+    pathEl.setAttribute("stroke-width", "2");
+    pathEl.setAttribute("fill", "none");
+    pathEl.setAttribute("stroke-dasharray", hasWarning ? "5,3" : "none");
+    pathEl.setAttribute("opacity", "0.6");
+    svg.appendChild(pathEl);
+
+    // Arrowhead at the dependent end
+    const arrowSize = 6;
+    const arrow = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+    arrow.setAttribute("points", `${x2},${y2} ${x2 - arrowSize},${y2 - arrowSize * 1.5} ${x2 + arrowSize},${y2 - arrowSize * 1.5}`);
+    arrow.setAttribute("fill", color);
+    arrow.setAttribute("opacity", "0.6");
+    svg.appendChild(arrow);
+  });
+}
+
+// Draw on load + after drag operations
+document.addEventListener("DOMContentLoaded", () => {
+  setTimeout(drawDependencyArrows, 300);  // wait for layout
+  // Redraw on window resize
+  window.addEventListener("resize", drawDependencyArrows);
+});
+
+// Redraw after Sortable drag
+const origOnEnd = window.kanbanOnEnd;
+window.addEventListener("load", () => {
+  setTimeout(drawDependencyArrows, 500);
+});
+</script>
+{% endblock %}

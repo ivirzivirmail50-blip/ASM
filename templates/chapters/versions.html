@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Versions: {{ chapter.title }}{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('chapters.list_view') }}">Chapters</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('chapters.detail', chapter_id=chapter.id) }}">{{ chapter.title }}</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Versions</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Version History</h1>
+    <div class="subtitle">{{ chapter.title }} — {{ versions|length }} version{{ 's' if versions|length != 1 else '' }}</div>
+  </div>
+  <a href="{{ url_for('chapters.detail', chapter_id=chapter.id) }}" class="btn btn-ghost">← Back to chapter</a>
+</div>
+
+{% if versions|length >= 2 %}
+<div class="card mb-4">
+  <div class="card-title mb-3">Compare two versions</div>
+  <form method="get" action="{{ url_for('chapters.versions_compare', chapter_id=chapter.id) }}" class="flex items-center gap-3 flex-wrap">
+    <select name="v1" class="form-select" style="width: 240px">
+      {% for v in versions %}
+      <option value="{{ v.id }}">v{{ v.version_number }} — {{ v.uploaded_at.strftime('%Y-%m-%d %H:%M') }} ({{ v.source }}, {{ v.word_count }}w)</option>
+      {% endfor %}
+    </select>
+    <span class="text-mute">vs</span>
+    <select name="v2" class="form-select" style="width: 240px">
+      {% for v in versions %}
+      <option value="{{ v.id }}" {{ 'selected' if loop.index == 2 }}>v{{ v.version_number }} — {{ v.uploaded_at.strftime('%Y-%m-%d %H:%M') }} ({{ v.source }}, {{ v.word_count }}w)</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-primary">Compare</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="card">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Version</th><th>Date</th><th>Source</th><th>Words</th><th>Notes</th><th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for v in versions %}
+      <tr id="v{{ v.version_number }}">
+        <td><strong>v{{ v.version_number }}</strong></td>
+        <td>{{ v.uploaded_at.strftime('%Y-%m-%d %H:%M') if v.uploaded_at else '-' }}</td>
+        <td><span class="badge no-dot">{{ v.source }}</span></td>
+        <td>{{ v.word_count }}</td>
+        <td class="text-sm text-dim">{{ v.notes or '' }}</td>
+        <td>
+          {% if v.id != versions[0].id %}
+          <button class="btn btn-sm" onclick="restoreVersion('{{ v.id }}')">↺ Restore</button>
+          {% else %}
+          <span class="badge success no-dot">Current</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function restoreVersion(vid) {
+  const ok = await confirmDialog("Restore this version? A new version snapshot will be created.", { okLabel: "Restore" });
+  if (!ok) return;
+  const { data } = await asmFetch(`/chapters/{{ chapter.id }}/versions/${vid}/restore`, { method: "POST" });
+  if (data.ok) {
+    showToast("Restored.", "success");
+    setTimeout(() => location.href = data.url, 500);
+  } else {
+    showToast(data.error || "Failed", "error");
+  }
+}
+</script>
+{% endblock %}

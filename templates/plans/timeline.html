@@ -1,0 +1,397 @@
+{% extends "base.html" %}
+{% block title %}Timeline{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('plans.board') }}">Plans</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Timeline</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Multi-Track Timeline</h1>
+    <div class="subtitle">Parallel lanes · horizontal view · drag to reorder tracks · click events to edit</div>
+  </div>
+  <div class="actions">
+    <div class="flex items-center gap-1" style="background: var(--bg-elev-2); border: 1px solid var(--border); border-radius: 8px; padding: 0.25rem">
+      <span class="text-mute text-xs" style="padding: 0 0.4rem">View:</span>
+      <button class="btn btn-sm btn-primary" id="viewVertical">▤ Vertical</button>
+      <button class="btn btn-sm btn-ghost" id="viewHorizontal" onclick="toggleHorizontalView()">↔ Horizontal</button>
+    </div>
+    <a href="{{ url_for('plans.board') }}" class="btn">▦ Kanban</a>
+    <a href="{{ url_for('plans.corkboard') }}" class="btn">⊟ Corkboard</a>
+    <a href="{{ url_for('plans.outline') }}" class="btn">≣ Outline</a>
+    <a href="{{ url_for('plans.new') }}" class="btn btn-primary">+ New Event</a>
+  </div>
+</div>
+
+<!-- Horizontal Timeline (hidden by default) -->
+<div class="card mb-6 hidden" id="horizontalTimelineCard">
+  <div class="flex items-center gap-3 mb-3 flex-wrap">
+    <div class="card-title" style="margin:0">Horizontal Timeline</div>
+    <div class="flex items-center gap-1" style="background: var(--bg-elev-2); border: 1px solid var(--border); border-radius: 8px; padding: 0.2rem">
+      <button class="btn btn-sm btn-ghost" onclick="hZoom(-1)">−</button>
+      <span class="text-mute text-xs" style="padding: 0 0.5rem" id="hZoomLabel">1x</span>
+      <button class="btn btn-sm btn-ghost" onclick="hZoom(1)">+</button>
+    </div>
+    <span class="text-mute text-xs">Scroll to zoom · drag to pan · click pin for details</span>
+  </div>
+  <div id="hTimelineContainer" style="overflow-x: auto; position: relative; min-height: 300px; background: var(--bg-elev-2); border-radius: 8px; padding: 1rem">
+    <div id="hTimelineInner" style="position: relative; min-width: 100%; height: 100%">
+      <!-- Rendered by JS -->
+    </div>
+  </div>
+  <!-- Legend -->
+  <div class="flex flex-wrap gap-3 mt-3 text-xs">
+    <span class="flex items-center gap-1"><span style="width:12px;height:12px;border-radius:50%;background:#6366f1;display:inline-block"></span> Plot Point</span>
+    <span class="flex items-center gap-1"><span style="width:12px;height:12px;border-radius:50%;background:#22c55e;display:inline-block"></span> Character Moment</span>
+    <span class="flex items-center gap-1"><span style="width:12px;height:12px;border-radius:50%;background:#ef4444;display:inline-block"></span> Climax</span>
+    <span class="flex items-center gap-1"><span style="width:12px;height:12px;border-radius:50%;background:#f59e0b;display:inline-block"></span> Resolution</span>
+    <span class="flex items-center gap-1"><span style="width:12px;height:12px;border-radius:50%;background:#94a3b8;display:inline-block"></span> Custom</span>
+  </div>
+</div>
+
+<div class="flex flex-col gap-4" id="timelineContainer">
+  {% for track, items in tracks.items() %}
+  <div class="card timeline-track-card" data-track="{{ track }}">
+    <div class="flex items-center gap-3 mb-3">
+      <span class="drag-handle text-mute" title="Drag to reorder tracks">⠿</span>
+      <h3 style="margin: 0">{{ track }}</h3>
+      <span class="badge no-dot">{{ items|length }} event{{ 's' if items|length != 1 }}</span>
+      <div class="grow"></div>
+      <button class="btn btn-sm btn-ghost" onclick="addEventToTrack('{{ track }}')">+ Add Event Here</button>
+    </div>
+    {% if items %}
+    <div class="timeline">
+      {% for p in items %}
+      <div class="timeline-entry {{ p.event_type or 'custom' }}" data-plan-id="{{ p.id }}"
+           style="cursor: pointer" onclick="showEventPopup('{{ p.id }}', '{{ p.title|e }}', '{{ p.description|e }}', '{{ p.event_type or '' }}', '{{ p.story_date or '' }}', '{{ p.status }}')">
+        <div class="flex items-center gap-3 mb-1">
+          <strong>{{ p.title }}</strong>
+          <span class="badge {{ p.status }}">{{ p.status|replace('_',' ') }}</span>
+          {% if p.story_date %}<span class="text-mute text-sm">{{ p.story_date }}</span>{% endif %}
+        </div>
+        {% if p.description %}
+        <div class="text-sm text-dim" style="max-width: 700px">{{ p.description }}</div>
+        {% endif %}
+        <div class="mt-2 flex gap-2">
+          <a href="{{ url_for('plans.detail', plan_id=p.id) }}" class="btn btn-sm" onclick="event.stopPropagation()">View →</a>
+          <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation(); editEvent('{{ p.id }}')" title="Edit">✎</button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding: 1rem; cursor: pointer" onclick="addEventToTrack('{{ track }}')" title="Click to add event">
+      <div class="text-mute text-sm">No events on this track. Click to add one.</div>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  {% if not tracks %}
+  <div class="empty-state">
+    <div class="empty-icon">⌗</div>
+    <h3>No plan items yet</h3>
+    <p>Plan items with a track (e.g. "Main Plot") will appear here as timeline events.</p>
+    <a href="{{ url_for('plans.new') }}" class="btn btn-primary mt-3">+ New Event</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ---- Horizontal Timeline ----
+const _hTimelineData = {{ plans_json | tojson }};
+let _hZoom = 1;
+
+function toggleHorizontalView() {
+  const card = document.getElementById("horizontalTimelineCard");
+  const vert = document.getElementById("timelineContainer");
+  const btnV = document.getElementById("viewVertical");
+  const btnH = document.getElementById("viewHorizontal");
+  if (card.classList.contains("hidden")) {
+    card.classList.remove("hidden");
+    vert.classList.add("hidden");
+    btnV.classList.remove("btn-primary"); btnV.classList.add("btn-ghost");
+    btnH.classList.remove("btn-ghost"); btnH.classList.add("btn-primary");
+    renderHorizontalTimeline();
+  } else {
+    card.classList.add("hidden");
+    vert.classList.remove("hidden");
+    btnV.classList.remove("btn-ghost"); btnV.classList.add("btn-primary");
+    btnH.classList.remove("btn-primary"); btnH.classList.add("btn-ghost");
+  }
+}
+
+function hZoom(delta) {
+  _hZoom = Math.max(0.5, Math.min(4, _hZoom + delta * 0.5));
+  document.getElementById("hZoomLabel").textContent = _hZoom + "x";
+  renderHorizontalTimeline();
+}
+
+function _hEventColor(type) {
+  return {plot_point:"#6366f1",character_moment:"#22c55e",climax:"#ef4444",resolution:"#f59e0b"}[type] || "#94a3b8";
+}
+
+function renderHorizontalTimeline() {
+  const inner = document.getElementById("hTimelineInner");
+  if (!inner) return;
+  const tracks = {};
+  _hTimelineData.forEach(p => {
+    const t = p.track || "Main Plot";
+    (tracks[t] = tracks[t] || []).push(p);
+  });
+  const trackNames = Object.keys(tracks);
+  const laneHeight = 60;
+  const totalHeight = trackNames.length * laneHeight + 40;
+  const baseWidth = 800;
+  const width = Math.max(baseWidth, baseWidth * _hZoom);
+
+  let html = `<div style="position:relative;width:${width}px;height:${totalHeight}px;min-width:100%">`;
+  // Track lanes
+  trackNames.forEach((track, i) => {
+    const top = i * laneHeight + 30;
+    html += `<div style="position:absolute;left:0;right:0;top:${top}px;height:${laneHeight-10}px;border-bottom:1px dashed var(--border);display:flex;align-items:center;padding-left:0.5rem">
+      <span class="text-mute text-xs" style="position:absolute;left:0.5rem;top:-12px">${escapeHtml(track)}</span>
+    </div>`;
+    // Events in this track
+    tracks[track].forEach((p, j) => {
+      const x = (j + 1) * (width / (tracks[track].length + 1));
+      const color = _hEventColor(p.event_type);
+      const statusColor = p.status === "final" ? "var(--success)" : (p.status === "writing" ? "var(--accent)" : "var(--text-mute)");
+      html += `<div style="position:absolute;left:${x}px;top:${top+5}px;transform:translateX(-50%);cursor:pointer;z-index:2"
+           onclick="showEventPopup('${p.id}','${escapeHtml(p.title)}','${escapeHtml(p.description||"")}','${p.event_type||""}','${p.story_date||""}','${p.status}')">
+        <div style="width:16px;height:16px;border-radius:50%;background:${color};border:2px solid ${statusColor};box-shadow:0 2px 6px rgba(0,0,0,0.3)"></div>
+        <div style="font-size:0.65rem;color:var(--text-dim);margin-top:2px;max-width:80px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(p.title)}</div>
+      </div>`;
+    });
+  });
+  // Time axis
+  html += `<div style="position:absolute;left:0;right:0;top:0;height:25px;border-bottom:1px solid var(--border);display:flex;align-items:center">
+    <span class="text-mute text-xs" style="padding-left:0.5rem">← Past</span>
+    <div style="flex:1"></div>
+    <span class="text-mute text-xs">Story Timeline</span>
+    <div style="flex:1"></div>
+    <span class="text-mute text-xs" style="padding-right:0.5rem">Future →</span>
+  </div>`;
+  html += "</div>";
+  inner.innerHTML = html;
+}
+
+// ---- Track drag-reorder ----
+document.addEventListener("DOMContentLoaded", () => {
+  const container = document.getElementById("timelineContainer");
+  if (container && typeof Sortable !== "undefined") {
+    Sortable.create(container, {
+      animation: 150,
+      handle: ".drag-handle",
+      ghostClass: "sortable-ghost",
+      onEnd: async () => {
+        const tracks = Array.from(container.children).map(el => el.dataset.track).filter(Boolean);
+        const fd = new FormData();
+        fd.append("csrf_token", getCsrfToken());
+        fd.append("tracks_json", JSON.stringify(tracks));
+        await fetch("/plans/timeline/reorder", {
+          method: "POST",
+          headers: { "X-CSRFToken": getCsrfToken(), "Content-Type": "application/json" },
+          body: JSON.stringify({ tracks })
+        });
+        showToast("Tracks reordered.", "success", 1500);
+      }
+    });
+  }
+});
+
+// ---- Event popup ----
+function showEventPopup(planId, title, description, eventType, storyDate, status) {
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal">
+      <div class="modal-header"><h3 class="modal-title">${escapeHtml(title)}</h3></div>
+      <div class="modal-body">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="badge ${status}">${status.replace(/_/g, ' ')}</span>
+          ${eventType ? `<span class="badge no-dot">${eventType.replace(/_/g, ' ')}</span>` : ''}
+          ${storyDate ? `<span class="text-mute text-sm">📅 ${escapeHtml(storyDate)}</span>` : ''}
+        </div>
+        ${description ? `<div class="text-sm" style="color: var(--text); line-height: 1.6">${escapeHtml(description)}</div>` : '<div class="text-mute text-sm">No description.</div>'}
+      </div>
+      <div class="modal-footer">
+        <button class="btn" data-act="close">Close</button>
+        <button class="btn" data-act="edit">✎ Edit</button>
+        <a class="btn btn-primary" href="/plans/${planId}">View →</a>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  backdrop.querySelector('[data-act="close"]').onclick = () => backdrop.remove();
+  backdrop.querySelector('[data-act="edit"]').onclick = () => {
+    backdrop.remove();
+    editEvent(planId, title, description, eventType, storyDate, status);
+  };
+  backdrop.addEventListener("click", (e) => { if (e.target === backdrop) backdrop.remove(); });
+}
+
+// ---- Edit event (prefilled modal) ----
+function editEvent(planId, title, desc, eventType, storyDate, status) {
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal">
+      <div class="modal-header"><h3 class="modal-title">Edit Event</h3></div>
+      <div class="modal-body">
+        <div class="form-row">
+          <label class="form-label">Title <span class="text-danger">*</span></label>
+          <input type="text" id="editTitle" class="form-input" value="${escapeHtml(title)}">
+        </div>
+        <div class="form-row">
+          <label class="form-label">Description</label>
+          <textarea id="editDesc" class="form-textarea" rows="2">${escapeHtml(desc)}</textarea>
+        </div>
+        <div class="card-grid cols-2">
+          <div class="form-row">
+            <label class="form-label">Event type</label>
+            <select id="editType" class="form-select">
+              <option value="plot_point" ${eventType === 'plot_point' ? 'selected' : ''}>Plot point</option>
+              <option value="character_moment" ${eventType === 'character_moment' ? 'selected' : ''}>Character moment</option>
+              <option value="climax" ${eventType === 'climax' ? 'selected' : ''}>Climax</option>
+              <option value="resolution" ${eventType === 'resolution' ? 'selected' : ''}>Resolution</option>
+              <option value="custom" ${eventType === 'custom' ? 'selected' : ''}>Custom</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label class="form-label">Story date</label>
+            <input type="text" id="editDate" class="form-input" value="${escapeHtml(storyDate)}">
+          </div>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Status</label>
+          <select id="editStatus" class="form-select">
+            ${['idea','planned','writing','draft_done','revised','final'].map(s =>
+              `<option value="${s}" ${status === s ? 'selected' : ''}>${s.replace(/_/g,' ')}</option>`
+            ).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" data-act="cancel">Cancel</button>
+        <button class="btn btn-primary" data-act="ok">Save</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  backdrop.querySelector('[data-act="cancel"]').onclick = () => backdrop.remove();
+  backdrop.querySelector('[data-act="ok"]').onclick = async () => {
+    const fd = new FormData();
+    fd.append("title", document.getElementById("editTitle").value);
+    fd.append("description", document.getElementById("editDesc").value);
+    fd.append("status", document.getElementById("editStatus").value);
+    fd.append("event_type", document.getElementById("editType").value);
+    fd.append("story_date", document.getElementById("editDate").value);
+    fd.append("csrf_token", getCsrfToken());
+    const res = await fetch(`/plans/${planId}/edit`, {
+      method: "POST",
+      headers: { "X-CSRFToken": getCsrfToken() },
+      body: fd
+    });
+    let data;
+    try { data = await res.json(); }
+    catch { data = { ok: false, error: "Server error" }; }
+    backdrop.remove();
+    if (data.ok) {
+      showToast("Event saved.", "success");
+      setTimeout(() => location.reload(), 500);
+    } else {
+      showToast(data.error || "Failed", "error");
+    }
+  };
+}
+
+// ---- Add event ----
+function addEventToTrack(trackName) {
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal">
+      <div class="modal-header"><h3 class="modal-title">+ New Event on "${escapeHtml(trackName)}"</h3></div>
+      <div class="modal-body">
+        <div class="form-row">
+          <label class="form-label">Title <span class="text-danger">*</span></label>
+          <input type="text" id="tlTitle" class="form-input" placeholder="Event title">
+        </div>
+        <div class="form-row">
+          <label class="form-label">Description</label>
+          <textarea id="tlDesc" class="form-textarea" rows="2"></textarea>
+        </div>
+        <div class="card-grid cols-2">
+          <div class="form-row">
+            <label class="form-label">Event type</label>
+            <select id="tlType" class="form-select">
+              <option value="plot_point">Plot point</option>
+              <option value="character_moment">Character moment</option>
+              <option value="climax">Climax</option>
+              <option value="resolution">Resolution</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label class="form-label">Story date</label>
+            <input type="text" id="tlDate" class="form-input" placeholder="e.g. Day 1, Year 321">
+          </div>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Status</label>
+          <select id="tlStatus" class="form-select">
+            <option value="idea">Idea</option>
+            <option value="planned">Planned</option>
+            <option value="writing" selected>Writing</option>
+            <option value="draft_done">Draft Done</option>
+            <option value="revised">Revised</option>
+            <option value="final">Final</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" data-act="cancel">Cancel</button>
+        <button class="btn btn-primary" data-act="ok">Create Event</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  backdrop.querySelector('[data-act="cancel"]').onclick = () => backdrop.remove();
+  backdrop.querySelector('[data-act="ok"]').onclick = async () => {
+    const title = document.getElementById("tlTitle").value.trim();
+    if (!title) { showToast("Title required.", "warning"); return; }
+    const fd = new FormData();
+    fd.append("title", title);
+    fd.append("description", document.getElementById("tlDesc").value);
+    fd.append("status", document.getElementById("tlStatus").value);
+    fd.append("track", trackName);
+    fd.append("event_type", document.getElementById("tlType").value);
+    fd.append("story_date", document.getElementById("tlDate").value);
+    fd.append("csrf_token", getCsrfToken());
+    const res = await fetch("/plans/new", {
+      method: "POST",
+      headers: { "X-CSRFToken": getCsrfToken() },
+      body: fd
+    });
+    let data;
+    try { data = await res.json(); }
+    catch { data = { ok: false, error: "Server error" }; }
+    backdrop.remove();
+    if (data.ok) {
+      showToast("Event created.", "success");
+      setTimeout(() => location.reload(), 500);
+    } else {
+      showToast(data.error || "Failed", "error");
+    }
+  };
+  document.getElementById("tlTitle").focus();
+}
+</script>
+{% endblock %}

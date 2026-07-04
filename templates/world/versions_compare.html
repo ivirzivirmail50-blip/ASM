@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Compare Versions: {{ entry.name }}{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('world.index') }}">World Library</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('world.detail', entry_id=entry.id) }}">{{ entry.name }}</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Compare Versions</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Compare World Entry Versions</h1>
+    <div class="subtitle">{{ entry.name }}</div>
+  </div>
+  <a href="{{ url_for('world.versions', entry_id=entry.id) }}" class="btn btn-ghost">← Back to versions</a>
+</div>
+
+<div class="card mb-4">
+  <div class="card-grid cols-2">
+    <div>
+      <div class="text-mute text-sm">Version A (older)</div>
+      <div style="font-weight: 600">v{{ v1.version_number }}</div>
+      <div class="text-sm text-dim">{{ v1.created_at.strftime('%Y-%m-%d %H:%M') if v1.created_at else '-' }} · {{ v1.source }}</div>
+    </div>
+    <div>
+      <div class="text-mute text-sm">Version B (newer)</div>
+      <div style="font-weight: 600">v{{ v2.version_number }}</div>
+      <div class="text-sm text-dim">{{ v2.created_at.strftime('%Y-%m-%d %H:%M') if v2.created_at else '-' }} · {{ v2.source }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title mb-3">Field-level differences</div>
+  <table class="table">
+    <thead>
+      <tr>
+        <th style="width: 18%">Field</th>
+        <th>Version A</th>
+        <th>Version B</th>
+        <th style="width: 80px">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in diff_rows %}
+      <tr style="{{ 'background: var(--warning-soft);' if row.changed else '' }}">
+        <td><strong>{{ row.field|replace('_', ' ')|title }}</strong></td>
+        <td class="text-sm" style="color: var(--text-dim); white-space: pre-wrap; max-width: 350px; word-break: break-word">{{ row.v1 if row.v1 is not none else '—' }}</td>
+        <td class="text-sm" style="color: var(--text-dim); white-space: pre-wrap; max-width: 350px; word-break: break-word">{{ row.v2 if row.v2 is not none else '—' }}</td>
+        <td>
+          {% if row.changed %}
+          <span class="badge warning no-dot">⚠ Diff</span>
+          {% else %}
+          <span class="badge success no-dot" style="font-size: 0.65rem">Same</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

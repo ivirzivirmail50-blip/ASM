@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Location Hierarchy{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('world.index') }}">World Library</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Location Tree</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Location Hierarchy</h1>
+    <div class="subtitle">Continent → Region → City → Building — click to expand/collapse</div>
+  </div>
+  <div class="actions">
+    <button class="btn btn-sm" onclick="expandAll()">▸ Expand All</button>
+    <button class="btn btn-sm" onclick="collapseAll()">▾ Collapse All</button>
+    <a href="{{ url_for('world.index') }}" class="btn btn-ghost">← Library</a>
+    <a href="{{ url_for('world.new', type='location') }}" class="btn btn-primary">+ New Location</a>
+  </div>
+</div>
+
+<div class="card">
+  {% macro render_tree(nodes, depth=0) %}
+  <ul class="loc-tree" style="list-style: none; {{ 'padding-left: 1.8rem; position: relative;' if depth > 0 else 'padding-left: 0;' }}">
+    {% if depth > 0 %}
+    <span style="position: absolute; left: 0.5rem; top: 0; bottom: 0; width: 1px; background: var(--border-strong);"></span>
+    {% endif %}
+    {% for node in nodes %}
+    <li class="loc-tree-item" data-has-children="{{ 'true' if node.children else 'false' }}"
+        style="position: relative; padding: 0.3rem 0; {{ 'margin-left: 0.5rem;' if depth > 0 else '' }}">
+      <div class="flex items-center gap-2" style="padding: 0.4rem 0.6rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-elev-1); transition: all 0.15s ease;"
+           onmouseover="this.style.borderColor='var(--accent)'"
+           onmouseout="this.style.borderColor='var(--border)'">
+        {% if node.children %}
+        <button class="loc-toggle" onclick="toggleNode(this)"
+                style="background: transparent; border: none; cursor: pointer; color: var(--text-mute); font-size: 0.9rem; width: 20px; text-align: center; flex-shrink: 0">▾</button>
+        {% else %}
+        <span style="width: 20px; text-align: center; flex-shrink: 0; color: var(--text-mute)">•</span>
+        {% endif %}
+        <span class="loc-icon" style="font-size: 1rem; flex-shrink: 0">
+          {% if depth == 0 %}🌐{% elif depth == 1 %}🏰{% elif depth == 2 %}🏠{% else %}📍{% endif %}
+        </span>
+        <a href="{{ url_for('world.detail', entry_id=node.entry.id) }}"
+           style="color: var(--text); text-decoration: none; font-weight: 500; flex: 1">
+          {{ node.entry.name }}
+        </a>
+        {% if node.entry.category %}
+        <span class="badge no-dot" style="font-size: 0.6rem">{{ node.entry.category }}</span>
+        {% endif %}
+        {% if node.children %}
+        <span class="text-mute text-xs">{{ node.children|length }} child{{ 'ren' if node.children|length != 1 }}</span>
+        {% endif %}
+        {% if node.entry.description %}
+        <span class="text-xs text-mute" style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ node.entry.description[:60] }}{% if node.entry.description|length > 60 %}…{% endif %}</span>
+        {% endif %}
+      </div>
+      {% if node.children %}
+      <div class="loc-children" style="display: block">
+        {{ render_tree(node.children, depth + 1) }}
+      </div>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% endmacro %}
+
+  {% if tree %}
+  {{ render_tree(tree) }}
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-icon">🌳</div>
+    <h3>No locations yet</h3>
+    <p>Create location entries and use the "Parent" field in edit mode to nest them into a hierarchy.</p>
+    <a href="{{ url_for('world.new', type='location') }}" class="btn btn-primary mt-3">+ New Location</a>
+  </div>
+  {% endif %}
+</div>
+
+<style>
+.loc-tree-item { transition: all 0.2s ease; }
+.loc-toggle:hover { color: var(--accent-hover) !important; }
+.loc-children.collapsed { display: none !important; }
+.loc-tree-item.collapsed > .loc-children { display: none !important; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleNode(btn) {
+  const li = btn.closest(".loc-tree-item");
+  const children = li.querySelector(":scope > .loc-children");
+  if (!children) return;
+  if (children.style.display === "none") {
+    children.style.display = "block";
+    btn.textContent = "▾";
+  } else {
+    children.style.display = "none";
+    btn.textContent = "▸";
+  }
+}
+
+function expandAll() {
+  document.querySelectorAll(".loc-children").forEach(c => c.style.display = "block");
+  document.querySelectorAll(".loc-toggle").forEach(b => b.textContent = "▾");
+}
+
+function collapseAll() {
+  document.querySelectorAll(".loc-children").forEach(c => c.style.display = "none");
+  document.querySelectorAll(".loc-toggle").forEach(b => b.textContent = "▸");
+}
+</script>
+{% endblock %}

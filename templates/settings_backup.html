@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Backup & Restore{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('settings.index') }}">Settings</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Backups</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Backups</h1>
+    <div class="subtitle">{{ backups|length }} backup{{ 's' if backups|length != 1 }}</div>
+  </div>
+  <div class="actions">
+    <button class="btn btn-primary" onclick="createBackup()">+ Create Backup Now</button>
+  </div>
+</div>
+
+{% if backups %}
+<div class="card">
+  <table class="table">
+    <thead>
+      <tr><th>Name</th><th>Date</th><th>Size</th><th>Actions</th></tr>
+    </thead>
+    <tbody>
+      {% for b in backups %}
+      <tr>
+        <td><strong>{{ b.name }}</strong></td>
+        <td class="text-sm">{{ b.mtime[:19]|replace('T', ' ') }}</td>
+        <td class="text-sm">{{ (b.size / 1024)|round(1) }} KB</td>
+        <td>
+          <button class="btn btn-sm btn-danger" onclick="restoreBackup('{{ b.path }}')">↺ Restore</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">📦</div>
+  <h3>No backups yet</h3>
+  <p>Click "Create Backup Now" to make your first backup.</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function createBackup() {
+  const { data } = await asmFetch("/settings/backup", { method: "POST" });
+  if (data.ok) {
+    showToast(`Backup created: ${data.name}`, "success");
+    setTimeout(() => location.reload(), 800);
+  } else {
+    showToast(data.error || "Failed", "error");
+  }
+}
+async function restoreBackup(path) {
+  const ok = await confirmDialog("Restore from this backup? The app must be restarted afterward.", { danger: true, okLabel: "Restore" });
+  if (!ok) return;
+  const { data } = await asmFetch("/settings/backup/restore", { method: "POST", body: { path } });
+  if (data.ok) {
+    showToast(data.message || "Restored.", "success");
+    setTimeout(() => location.reload(), 1500);
+  } else {
+    showToast(data.error || "Failed", "error");
+  }
+}
+</script>
+{% endblock %}

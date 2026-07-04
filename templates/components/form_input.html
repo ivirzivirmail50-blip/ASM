@@ -1,0 +1,61 @@
+{#
+  Reusable form input component.
+  Usage:
+    {% set field_name = "title" %}
+    {% set field_label = "Title" %}
+    {% set field_type = "text" %}
+    {% set field_value = chapter.title %}
+    {% set field_required = true %}
+    {% set field_placeholder = "Enter title..." %}
+    {% set field_hint = "Max 500 chars" %}
+    {% include "components/form_input.html" %}
+
+  Types: text, textarea, select, checkbox, date, number, color, password
+  For select: pass field_options = [{"value": "x", "label": "X", "selected": true}, ...]
+  For checkbox: field_checked = true/false
+#}
+<div class="form-row">
+  {% if field_type|default('text') == 'checkbox' %}
+  <label class="flex items-center gap-2 text-sm">
+    <input type="checkbox" name="{{ field_name }}"
+           {% if field_checked %}checked{% endif %}
+           {% if field_required %}required{% endif %}>
+    <span>{{ field_label }}</span>
+  </label>
+  {% else %}
+  <label class="form-label">
+    {{ field_label }}
+    {% if field_required %}<span class="text-danger">*</span>{% endif %}
+  </label>
+  {% endif %}
+
+  {% if field_type|default('text') == 'textarea' %}
+  <textarea name="{{ field_name }}" class="form-textarea"
+            rows="{{ field_rows|default(3) }}"
+            {% if field_placeholder %}placeholder="{{ field_placeholder }}"{% endif %}
+            {% if field_required %}required{% endif %}
+            {% if field_maxlength %}maxlength="{{ field_maxlength }}"{% endif %}>{{ field_value|default('') }}</textarea>
+
+  {% elif field_type == 'select' %}
+  <select name="{{ field_name }}" class="form-select" {% if field_required %}required{% endif %}>
+    {% for opt in field_options|default([]) %}
+    <option value="{{ opt.value }}" {% if opt.selected %}selected{% endif %}>{{ opt.label }}</option>
+    {% endfor %}
+  </select>
+
+  {% else %}
+  <input type="{{ field_type|default('text') }}" name="{{ field_name }}"
+         class="form-input"
+         value="{{ field_value|default('') }}"
+         {% if field_placeholder %}placeholder="{{ field_placeholder }}"{% endif %}
+         {% if field_required %}required{% endif %}
+         {% if field_min %}min="{{ field_min }}"{% endif %}
+         {% if field_max %}max="{{ field_max }}"{% endif %}
+         {% if field_step %}step="{{ field_step }}"{% endif %}
+         {% if field_maxlength %}maxlength="{{ field_maxlength }}"{% endif %}>
+  {% endif %}
+
+  {% if field_hint %}
+  <div class="form-hint">{{ field_hint }}</div>
+  {% endif %}
+</div>

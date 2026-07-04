@@ -1,0 +1,25 @@
+{#
+  Reusable modal component.
+  Usage:
+    {% set modal_id = "myModal" %}
+    {% set modal_title = "Confirm" %}
+    {% set modal_body = "<p>Are you sure?</p>" %}
+    {% set modal_footer = '<button class="btn btn-primary">OK</button>' %}
+    {% include "components/modal.html" %}
+#}
+<div class="modal-backdrop" id="{{ modal_id|default('modal') }}" style="display: none">
+  <div class="modal {{ modal_size|default('') }}">
+    <div class="modal-header">
+      <h3 class="modal-title">{{ modal_title|default('') }}</h3>
+      <button class="btn btn-ghost btn-icon btn-sm" onclick="document.getElementById('{{ modal_id|default('modal') }}').style.display='none'">×</button>
+    </div>
+    <div class="modal-body">
+      {{ modal_body|default('') }}
+    </div>
+    {% if modal_footer %}
+    <div class="modal-footer">
+      {{ modal_footer }}
+    </div>
+    {% endif %}
+  </div>
+</div>

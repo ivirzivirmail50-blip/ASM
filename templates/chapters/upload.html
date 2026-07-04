@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Upload Chapter{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('chapters.list_view') }}">Chapters</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Upload</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Upload Chapter File</h1>
+    <div class="subtitle">TXT, MD, DOCX, PDF, RTF, ODT, HTML, CSV — up to 25 MB</div>
+  </div>
+  <a href="{{ url_for('chapters.list_view') }}" class="btn btn-ghost">← Back</a>
+</div>
+
+<div class="card">
+  <div id="dropzone"
+       style="border: 2px dashed var(--border-strong); border-radius: 12px;
+              padding: 3rem 1rem; text-align: center; cursor: pointer;
+              transition: all 0.2s ease;">
+    <div style="font-size: 3rem; opacity: 0.4">↥</div>
+    <div style="font-weight: 600; margin-top: 0.5rem">Drop a file here or click to browse</div>
+    <div class="text-mute text-sm mt-2">TXT, MD, DOCX, PDF, RTF, ODT, HTML, CSV — max 25 MB</div>
+    <input type="file" id="fileInput" style="display: none"
+           accept=".txt,.md,.markdown,.docx,.pdf,.rtf,.odt,.html,.htm,.csv">
+  </div>
+
+  <form id="uploadForm" style="display: none" class="mt-4">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="title" id="titleInput">
+    <input type="hidden" name="status" value="draft">
+    <div id="filePreview" class="card mb-4" style="background: var(--bg-elev-2)"></div>
+    <div class="form-row">
+      <label class="form-label">Chapter title</label>
+      <input type="text" id="titleVisible" class="form-input"
+             placeholder="Override auto-detected title">
+    </div>
+    <div class="flex justify-end gap-2">
+      <button type="button" class="btn" onclick="resetUpload()">Cancel</button>
+      <button type="submit" class="btn btn-primary">↥ Upload & Create Chapter</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const drop = document.getElementById("dropzone");
+const input = document.getElementById("fileInput");
+const form = document.getElementById("uploadForm");
+const titleVisible = document.getElementById("titleVisible");
+const titleInput = document.getElementById("titleInput");
+const preview = document.getElementById("filePreview");
+
+drop.addEventListener("click", () => input.click());
+drop.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  drop.style.background = "var(--accent-light)";
+  drop.style.borderColor = "var(--accent)";
+});
+drop.addEventListener("dragleave", () => {
+  drop.style.background = "";
+  drop.style.borderColor = "";
+});
+drop.addEventListener("drop", (e) => {
+  e.preventDefault();
+  drop.style.background = "";
+  drop.style.borderColor = "";
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+input.addEventListener("change", () => {
+  if (input.files.length) handleFile(input.files[0]);
+});
+
+function handleFile(f) {
+  if (f.size > 25 * 1024 * 1024) {
+    showToast("File too large (max 25 MB).", "error");
+    return;
+  }
+  const ext = f.name.split(".").pop().toLowerCase();
+  const allowed = ["txt","md","markdown","docx","pdf","rtf","odt","html","htm","csv"];
+  if (!allowed.includes(ext)) {
+    showToast(`Extension .${ext} not allowed.`, "error");
+    return;
+  }
+  // Auto-derive title from filename
+  const baseName = f.name.replace(/\.[^.]+$/, "");
+  titleVisible.value = baseName;
+  titleInput.value = baseName;
+  preview.innerHTML = `
+    <div class="flex items-center gap-3">
+      <div style="font-size: 2rem">📄</div>
+      <div class="grow">
+        <div style="font-weight: 600">${escapeHtml(f.name)}</div>
+        <div class="text-sm text-mute">${(f.size / 1024).toFixed(1)} KB · ${ext.toUpperCase()}</div>
+      </div>
+    </div>
+  `;
+  form.style.display = "block";
+  form.dataset.filename = f.name;
+  form._file = f;
+}
+
+titleVisible.addEventListener("input", () => {
+  titleInput.value = titleVisible.value;
+});
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const fd = new FormData();
+  fd.append("file", form._file, form.dataset.filename);
+  fd.append("title", titleInput.value);
+  fd.append("status", "draft");
+  const res = await fetch("/chapters/upload", {
+    method: "POST",
+    headers: { "X-CSRFToken": getCsrfToken() },
+    body: fd
+  });
+  let data;
+  try { data = await res.json(); }
+  catch { data = { ok: false, error: "Invalid response" }; }
+  if (data.ok) {
+    showToast("Chapter uploaded.", "success");
+    setTimeout(() => window.location.href = data.url, 500);
+  } else {
+    showToast(data.error || "Upload failed", "error");
+  }
+});
+
+function resetUpload() {
+  form.style.display = "none";
+  form._file = null;
+  input.value = "";
+  titleVisible.value = "";
+  titleInput.value = "";
+}
+</script>
+{% endblock %}

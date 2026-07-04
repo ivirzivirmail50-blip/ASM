@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}{{ entry.name }}{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('world.index') }}">World Library</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">{{ entry.name }}</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="flex items-center gap-2 mb-1">
+      <span class="badge no-dot">{{ entry.type|replace('_',' ')|title }}</span>
+      {% if entry.category %}<span class="badge no-dot">{{ entry.category }}</span>{% endif %}
+    </div>
+    <h1>{{ entry.name }}</h1>
+    {% if entry.description %}<div class="subtitle">{{ entry.description }}</div>{% endif %}
+  </div>
+  <div class="actions">
+    <a href="{{ url_for('world.edit', entry_id=entry.id) }}" class="btn">✎ Edit</a>
+    <a href="{{ url_for('world.versions', entry_id=entry.id) }}" class="btn">⌚ Versions</a>
+    <button class="btn" onclick="duplicateEntry()">⎘ Duplicate</button>
+    <button class="btn btn-danger" onclick="deleteEntry()">🗑 Delete</button>
+  </div>
+</div>
+
+<div class="card-grid cols-3">
+  <div style="grid-column: span 2" class="flex flex-col gap-4">
+    {% if entry.content %}
+    <div class="card">
+      <div class="card-title">Content</div>
+      <div class="font-serif" style="line-height: 1.8; color: var(--text); white-space: pre-wrap">{{ entry.content }}</div>
+    </div>
+    {% endif %}
+    {% if entry.notes %}
+    <div class="card">
+      <div class="card-title">Notes</div>
+      <div class="font-serif" style="line-height: 1.7; color: var(--text-dim)">{{ entry.notes }}</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="flex flex-col gap-4">
+    <!-- Metadata -->
+    {% if metadata %}
+    <div class="card">
+      <div class="card-title mb-2">Metadata</div>
+      <table class="table">
+        <tbody>
+          {% for k, v in metadata.items() %}
+          <tr>
+            <td class="text-mute" style="text-transform: capitalize">{{ k|replace('_',' ') }}</td>
+            <td>{{ v }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+    <!-- Map pin -->
+    {% if entry.map_pin_x is not none %}
+    <div class="card">
+      <div class="card-title mb-2">Map Position</div>
+      <div class="text-sm text-dim">x: {{ entry.map_pin_x|round(1) }}, y: {{ entry.map_pin_y|round(1) }}</div>
+      {% if entry.map_pin_label %}<div class="text-mute text-xs">Label: {{ entry.map_pin_label }}</div>{% endif %}
+      <a href="{{ url_for('world.map_view') }}" class="btn btn-sm btn-ghost mt-2 w-full">View on map →</a>
+    </div>
+    {% endif %}
+
+    <!-- Relations -->
+    {% if out_relations or in_relations %}
+    <div class="card">
+      <div class="card-title mb-2">Relations</div>
+      {% if out_relations %}
+      <div class="text-mute text-xs mb-1">Outgoing</div>
+      {% for r in out_relations %}
+      <a href="{{ url_for('world.detail', entry_id=r.to_entry_id) }}" class="block text-sm" style="padding: 0.3rem; color: var(--accent-hover)">
+        → {{ r.relation_type|replace('_',' ') }}
+      </a>
+      {% endfor %}
+      {% endif %}
+      {% if in_relations %}
+      <div class="text-mute text-xs mb-1 mt-2">Incoming</div>
+      {% for r in in_relations %}
+      <a href="{{ url_for('world.detail', entry_id=r.from_entry_id) }}" class="block text-sm" style="padding: 0.3rem; color: var(--accent-hover)">
+        ← {{ r.relation_type|replace('_',' ') }}
+      </a>
+      {% endfor %}
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="card">
+      <div class="text-xs text-mute">
+        Created: {{ entry.created_at.strftime('%Y-%m-%d') if entry.created_at else '-' }}<br>
+        Updated: {{ entry.updated_at.strftime('%Y-%m-%d %H:%M') if entry.updated_at else '-' }}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function duplicateEntry() {
+  const { data } = await asmFetch(`/world/{{ entry.id }}/duplicate`, { method: "POST" });
+  if (data.ok) {
+    showToast("Duplicated.", "success");
+    setTimeout(() => window.location.href = data.url, 500);
+  } else {
+    showToast(data.error || "Failed", "error");
+  }
+}
+async function deleteEntry() {
+  const ok = await confirmDialog(`Delete "{{ entry.name|e }}"?`, { danger: true, okLabel: "Delete" });
+  if (!ok) return;
+  const { data } = await asmFetch(`/world/{{ entry.id }}/delete`, { method: "POST" });
+  if (data.ok) {
+    showToast("Deleted.", "success");
+    setTimeout(() => window.location.href = data.url, 500);
+  } else {
+    showToast(data.error || "Failed", "error");
+  }
+}
+</script>
+{% endblock %}

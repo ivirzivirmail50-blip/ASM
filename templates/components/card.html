@@ -1,0 +1,21 @@
+{#
+  Reusable card component.
+  Usage:
+    {% include "components/card.html" with context %}
+  Required context vars:
+    - card_title (optional)
+    - card_subtitle (optional)
+  Optional:
+    - card_class: extra CSS classes
+    - card_id: DOM id
+  Content slot: {{ card_body }}
+#}
+<div class="card {{ card_class|default('') }}" id="{{ card_id|default('') }}">
+  {% if card_title %}
+  <div class="card-title">{{ card_title }}</div>
+  {% endif %}
+  {% if card_subtitle %}
+  <div class="card-subtitle">{{ card_subtitle }}</div>
+  {% endif %}
+  {{ card_body|default('') }}
+</div>

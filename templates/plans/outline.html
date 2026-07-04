@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Outline{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('plans.board') }}">Plans</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Outline</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Nested Outline</h1>
+    <div class="subtitle">Drag items to reorder or nest. Drop on another item to make it a child.</div>
+  </div>
+  <div class="actions">
+    <a href="{{ url_for('plans.board') }}" class="btn">▦ Kanban</a>
+    <a href="{{ url_for('plans.timeline') }}" class="btn">⌗ Timeline</a>
+    <a href="{{ url_for('plans.new') }}" class="btn btn-primary">+ New Item</a>
+  </div>
+</div>
+
+<div class="card">
+  {% macro render_tree(items) %}
+  <ul class="outline-tree">
+    {% for p in items %}
+    <li class="outline-item" data-id="{{ p.id }}">
+      <span class="drag-handle">⠿</span>
+      <span class="status-dot {{ p.status }}"></span>
+      <a href="{{ url_for('plans.detail', plan_id=p.id) }}" style="color: var(--text); text-decoration: none; font-weight: 500">{{ p.title }}</a>
+      {% if p.description %}<span class="text-xs text-mute" style="margin-left: 0.5rem">{{ p.description[:60] }}{% if p.description|length > 60 %}…{% endif %}</span>{% endif %}
+      {% set children = plans | selectattr('parent_id', 'equalto', p.id) | list %}
+      {% if children %}
+      {{ render_tree(children) }}
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% endmacro %}
+
+  {% if roots %}
+  {{ render_tree(roots) }}
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-icon">≣</div>
+    <h3>No plan items yet</h3>
+    <a href="{{ url_for('plans.new') }}" class="btn btn-primary mt-3">+ New Item</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/outline_dnd.js') }}"></script>
+{% endblock %}

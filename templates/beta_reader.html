@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Beta Reader: {{ chapter.title }}{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('chapters.list_view') }}">Chapters</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('chapters.detail', chapter_id=chapter.id) }}">{{ chapter.title }}</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Beta Reader</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>📖 Beta Reader View</h1>
+    <div class="subtitle">{{ chapter.title }} · {{ chapter.word_count }} words · {{ open_count }} open comments</div>
+  </div>
+  <div class="actions">
+    <a href="{{ url_for('chapters.detail', chapter_id=chapter.id) }}" class="btn btn-ghost">← Back to Chapter</a>
+  </div>
+</div>
+
+<div class="card-grid cols-3">
+  <!-- Chapter content (read-only) -->
+  <div style="grid-column: span 2">
+    <div class="card">
+      <div id="chapterContent" class="font-serif"
+           style="font-size: 1.05rem; line-height: 1.85; white-space: pre-wrap; color: var(--text)"
+           onmouseup="handleTextSelection()">{{ chapter.content }}</div>
+    </div>
+  </div>
+
+  <!-- Comment sidebar -->
+  <div class="flex flex-col gap-4">
+    <!-- Add comment -->
+    <div class="card">
+      <div class="card-title mb-2">💬 Add Comment</div>
+      <div class="form-row">
+        <label class="form-label">Your name</label>
+        <input type="text" id="readerName" class="form-input" value="Beta Reader" placeholder="Your name">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Selected text (auto-filled)</label>
+        <textarea id="selectedText" class="form-textarea" rows="2" readonly placeholder="Select text in the chapter, then type your comment..."></textarea>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Comment</label>
+        <textarea id="commentText" class="form-textarea" rows="3" placeholder="Your feedback..."></textarea>
+      </div>
+      <button class="btn btn-primary btn-sm w-full" onclick="submitComment()">Submit Comment</button>
+    </div>
+
+    <!-- Comment list -->
+    <div class="card">
+      <div class="card-title mb-2">Comments ({{ comments|length }})</div>
+      <div class="flex flex-col gap-2">
+        {% for c in comments %}
+        <div class="card" style="padding: 0.6rem; background: var(--bg-elev-2); border-left: 3px solid {{ 'var(--success)' if c.status == 'resolved' else 'var(--accent)' }}">
+          <div class="flex items-center gap-2 mb-1">
+            <strong class="text-sm">{{ c.reader_name }}</strong>
+            <span class="badge no-dot {{ 'success' if c.status == 'resolved' else '' }}" style="font-size: 0.6rem">{{ c.status }}</span>
+          </div>
+          {% if c.selected_text %}
+          <div class="text-xs text-mute mb-1" style="font-style: italic">"{{ c.selected_text[:80] }}{% if c.selected_text|length > 80 %}…{% endif %}"</div>
+          {% endif %}
+          <div class="text-sm" style="color: var(--text)">{{ c.comment }}</div>
+          <div class="flex gap-1 mt-1">
+            {% if c.status == 'open' %}
+            <button class="btn btn-ghost btn-sm" onclick="resolveComment({{ c.id }})">✓ Resolve</button>
+            {% endif %}
+            <button class="btn btn-ghost btn-sm text-danger" onclick="deleteComment({{ c.id }})">🗑</button>
+          </div>
+        </div>
+        {% else %}
+        <div class="text-mute text-sm" style="padding: 0.5rem">No comments yet.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function handleTextSelection() {
+  const selection = window.getSelection().toString().trim();
+  if (selection.length > 2) {
+    document.getElementById("selectedText").value = selection;
+    document.getElementById("commentText").focus();
+  }
+}
+
+async function submitComment() {
+  const comment = document.getElementById("commentText").value.trim();
+  if (!comment) { showToast("Type a comment first.", "warning"); return; }
+  const { data } = await asmFetch(`/beta/{{ chapter.id }}/comment`, {
+    method: "POST",
+    body: {
+      comment,
+      reader_name: document.getElementById("readerName").value,
+      selected_text: document.getElementById("selectedText").value,
+    }
+  });
+  if (data.ok) {
+    showToast("Comment added.", "success");
+    setTimeout(() => location.reload(), 500);
+  } else {
+    showToast(data.error || "Failed", "error");
+  }
+}
+
+async function resolveComment(id) {
+  const { data } = await asmFetch(`/beta/comment/${id}/resolve`, { method: "POST" });
+  if (data.ok) { showToast("Resolved.", "success"); setTimeout(() => location.reload(), 500); }
+}
+
+async function deleteComment(id) {
+  const ok = await confirmDialog("Delete this comment?", { danger: true, okLabel: "Delete" });
+  if (!ok) return;
+  const { data } = await asmFetch(`/beta/comment/${id}/delete`, { method: "POST" });
+  if (data.ok) { showToast("Deleted.", "success"); setTimeout(() => location.reload(), 500); }
+}
+</script>
+{% endblock %}

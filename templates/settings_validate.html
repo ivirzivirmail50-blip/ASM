@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Data Health Check{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('settings.index') }}">Settings</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Data Health</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Data Health Check</h1>
+    <div class="subtitle">{{ result.summary.total }} finding{{ 's' if result.summary.total != 1 else '' }}
+       ({{ result.summary.errors }} error{{ 's' if result.summary.errors != 1 else '' }},
+        {{ result.summary.warnings }} warning{{ 's' if result.summary.warnings != 1 else '' }})</div>
+  </div>
+  <div class="actions">
+    <button class="btn btn-primary" onclick="fixWordCounts()">↺ Fix Word Counts</button>
+  </div>
+</div>
+
+{% if result.ok %}
+<div class="card mb-4" style="border-left: 3px solid var(--success)">
+  <div class="flex items-center gap-3">
+    <div style="font-size: 2rem; color: var(--success)">✓</div>
+    <div>
+      <div style="font-weight: 600">No errors found.</div>
+      <div class="text-sm text-dim">All references resolve correctly.</div>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="card mb-4" style="border-left: 3px solid var(--danger)">
+  <div class="flex items-center gap-3">
+    <div style="font-size: 2rem; color: var(--danger)">!</div>
+    <div>
+      <div style="font-weight: 600">{{ result.summary.errors }} error{{ 's' if result.summary.errors != 1 }} found.</div>
+      <div class="text-sm text-dim">Dangling references should be cleaned up.</div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if result.findings %}
+<div class="card">
+  <table class="table">
+    <thead>
+      <tr><th>Severity</th><th>Type</th><th>Entity</th><th>Message</th></tr>
+    </thead>
+    <tbody>
+      {% for f in result.findings %}
+      <tr>
+        <td>
+          <span class="badge no-dot {{ 'danger' if f.severity == 'error' else 'warning' }}">{{ f.severity }}</span>
+        </td>
+        <td class="text-sm">{{ f.category }}</td>
+        <td class="text-sm">
+          <strong>{{ f.entity_type }}</strong>
+          {% if f.entity_id != 'batch' %}
+          <span class="text-mute">#{{ f.entity_id[:8] }}</span>
+          {% endif %}
+          {% if f.entity_title %}<div class="text-xs text-mute">{{ f.entity_title }}</div>{% endif %}
+        </td>
+        <td class="text-sm text-dim">{{ f.message }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">✓</div>
+  <h3>No findings</h3>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function fixWordCounts() {
+  const { data } = await asmFetch("/settings/validate/fix-word-counts", { method: "POST" });
+  if (data.ok) {
+    showToast(`Fixed ${data.fixed} chapter word counts.`, "success");
+    setTimeout(() => location.reload(), 800);
+  } else {
+    showToast(data.error || "Failed", "error");
+  }
+}
+</script>
+{% endblock %}
