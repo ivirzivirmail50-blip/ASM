@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block title %}Writing Journal{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Writing Journal</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>📔 Writing Journal</h1>
+    <div class="subtitle">Track your writing process: mood, energy, wins, struggles, and intentions for tomorrow.</div>
+  </div>
+</div>
+
+<!-- Today's entry form -->
+<div class="card mb-6" style="border-left: 3px solid var(--accent)">
+  <div class="flex items-center justify-between mb-3">
+    <div>
+      <div class="card-title">Today — {{ today_entry.entry_date }}</div>
+      <div class="card-subtitle">Word goal: {{ today_entry.word_count_goal }} · Written today: {{ today_entry.word_count_actual }}</div>
+    </div>
+    {% if today_entry.goal_met %}
+    <span class="badge" style="background: var(--success); color: white">✓ Goal met!</span>
+    {% endif %}
+  </div>
+
+  <form id="journalForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="entry_date" value="{{ today_entry.entry_date }}">
+
+    <div class="card-grid cols-2 mb-3">
+      <div class="form-row">
+        <label class="form-label">How did the writing feel today?</label>
+        <div class="flex gap-1 flex-wrap" id="moodPicker">
+          {% for key, m in moods.items() %}
+          <label style="cursor: pointer; padding: 0.4rem 0.75rem; border: 2px solid {{ 'var(--accent)' if today_entry.mood == key else 'var(--border)' }}; border-radius: 6px; background: {{ m.color }}22 if today_entry.mood == key else 'transparent' }}">
+            <input type="radio" name="mood" value="{{ key }}" style="display: none" {{ 'checked' if today_entry.mood == key }}
+                   onchange="document.querySelectorAll('#moodPicker label').forEach(l => l.style.borderColor = 'var(--border)'); this.closest('label').style.borderColor = 'var(--accent)'; this.closest('label').style.background = '{{ m.color }}22'">
+            <span>{{ m.icon }} {{ m.label }}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Energy level: <span id="energyLabel">{{ today_entry.energy or 3 }}/5</span></label>
+        <input type="range" name="energy" min="1" max="5" value="{{ today_entry.energy or 3 }}"
+               oninput="document.getElementById('energyLabel').textContent = this.value + '/5'"
+               style="width: 100%">
+      </div>
+    </div>
+
+    <div class="card-grid cols-2 mb-3">
+      <div class="form-row">
+        <label class="form-label">Word count goal</label>
+        <input type="number" name="word_count_goal" class="form-input" value="{{ today_entry.word_count_goal or 500 }}" min="0">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Words actually written</label>
+        <input type="number" name="word_count_actual" class="form-input" value="{{ today_entry.word_count_actual or 0 }}" min="0">
+      </div>
+    </div>
+
+    <div class="card-grid cols-2 mb-3">
+      <div class="form-row">
+        <label class="form-label">🏆 Wins (what went well)</label>
+        <textarea name="wins" class="form-textarea" rows="3" placeholder="I finally cracked the dialogue in chapter 3…">{{ today_entry.wins }}</textarea>
+      </div>
+      <div class="form-row">
+        <label class="form-label">😤 Struggles (what was hard)</label>
+        <textarea name="struggles" class="form-textarea" rows="3" placeholder="Couldn't figure out the transition between scenes 4 and 5…">{{ today_entry.struggles }}</textarea>
+      </div>
+    </div>
+
+    <div class="card-grid cols-2 mb-3">
+      <div class="form-row">
+        <label class="form-label">🎯 Intentions for tomorrow</label>
+        <textarea name="intentions" class="form-textarea" rows="3" placeholder="Finish revising chapter 3, then start chapter 4 outline…">{{ today_entry.intentions }}</textarea>
+      </div>
+      <div class="form-row">
+        <label class="form-label">🙏 One thing I'm grateful for</label>
+        <textarea name="gratitude" class="form-textarea" rows="3" placeholder="A quiet morning with no interruptions…">{{ today_entry.gratitude }}</textarea>
+      </div>
+    </div>
+
+    <div class="form-row mb-3">
+      <label class="form-label">Notes (anything else)</label>
+      <textarea name="notes" class="form-textarea" rows="2">{{ today_entry.notes }}</textarea>
+    </div>
+
+    <div class="flex justify-end">
+      <button type="submit" class="btn btn-primary">💾 Save Today's Entry</button>
+    </div>
+  </form>
+</div>
+
+<!-- Stats -->
+<div class="card-grid cols-5 mb-6">
+  <div class="card text-center">
+    <div class="card-subtitle">Entries (30d)</div>
+    <div style="font-size: 1.5rem; font-weight: 600">{{ stats.entries_count }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Avg mood</div>
+    <div style="font-size: 1.5rem; font-weight: 600; color: var(--accent-hover)">{{ stats.avg_mood_score }}/5</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Avg energy</div>
+    <div style="font-size: 1.5rem; font-weight: 600">{{ stats.avg_energy }}/5</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Goals met</div>
+    <div style="font-size: 1.5rem; font-weight: 600; color: var(--success)">{{ stats.goal_met_count }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Journal streak</div>
+    <div style="font-size: 1.5rem; font-weight: 600; color: var(--warning)">{{ stats.streak }}d 🔥</div>
+  </div>
+</div>
+
+<!-- Past entries -->
+<div class="card">
+  <div class="card-title mb-3">📖 Past Entries</div>
+  {% if entries %}
+  <div class="flex flex-col gap-2" style="max-height: 600px; overflow-y: auto">
+    {% for e in entries %}
+    <div class="card" style="padding: 1rem; border-left: 3px solid {{ e.mood_color }}">
+      <div class="flex items-start gap-3">
+        <div style="min-width: 100px">
+          <div style="font-weight: 600">{{ e.entry_date }}</div>
+          <div class="text-xs text-mute">{{ e.mood_icon }} {{ e.mood_label }}</div>
+          <div class="text-xs text-mute">⚡ {{ e.energy or '—' }}/5</div>
+        </div>
+        <div class="flex-1">
+          <div class="flex gap-2 mb-1 flex-wrap">
+            <span class="badge">{{ e.word_count_actual or 0 }} / {{ e.word_count_goal or '—' }} words</span>
+            {% if e.goal_met %}<span class="badge" style="background: var(--success)22; color: var(--success)">✓</span>{% endif %}
+          </div>
+          {% if e.wins %}<div class="text-sm mt-1"><strong>🏆</strong> {{ e.wins[:200] }}{% if e.wins|length > 200 %}…{% endif %}</div>{% endif %}
+          {% if e.struggles %}<div class="text-sm mt-1"><strong>😤</strong> {{ e.struggles[:200] }}{% if e.struggles|length > 200 %}…{% endif %}</div>{% endif %}
+          {% if e.intentions %}<div class="text-sm mt-1"><strong>🎯</strong> {{ e.intentions[:200] }}{% if e.intentions|length > 200 %}…{% endif %}</div>{% endif %}
+          {% if e.gratitude %}<div class="text-sm mt-1"><strong>🙏</strong> {{ e.gratitude[:200] }}{% if e.gratitude|length > 200 %}…{% endif %}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state" style="padding: 2rem; text-align: center">
+    <div class="text-mute text-sm">No past entries yet. Your first entry is being created above.</div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById("journalForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const payload = {};
+  for (const [k, v] of fd.entries()) {
+    if (k === "tags") {
+      if (!(k in payload)) payload[k] = [];
+      payload[k].push(...v.split(",").map(s => s.trim()).filter(Boolean));
+    } else {
+      payload[k] = v;
+    }
+  }
+  const { data } = await asmFetch("/journal/api/save", { method: "POST", body: payload });
+  if (data.ok) {
+    showToast("Journal entry saved!", "success");
+    setTimeout(() => location.reload(), 800);
+  } else {
+    showToast(data.error || "Failed", "error");
+  }
+});
+</script>
+{% endblock %}

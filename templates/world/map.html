@@ -5,43 +5,66 @@
 <span class="crumb-sep">/</span>
 <a href="{{ url_for('world.index') }}">World Library</a>
 <span class="crumb-sep">/</span>
-<span class="crumb-current">Map</span>
+<a href="{{ url_for('world.map_view') }}">Map</a>
+{% for crumb in breadcrumbs %}
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('world.map_view', parent=crumb.id) }}">{{ crumb.name }}</a>
+{% endfor %}
 {% endblock %}
 
 {% block content %}
 <div class="page-header">
   <div>
-    <h1>Interactive World Map</h1>
-    <div class="subtitle">Click a pin to view a location · drag pins to reposition · mouse wheel to zoom</div>
+    <h1>{% if parent_name %}🗺️ {{ parent_name }} Map{% else %}Interactive World Map{% endif %}</h1>
+    <div class="subtitle">Click a pin to view · drag to reposition · click "Enter Sub-Map" for nested locations</div>
   </div>
   <div class="actions">
+    {% if parent_id %}
+    <a href="{{ url_for('world.map_view', parent=breadcrumbs[-2].id if breadcrumbs|length >= 2 else None) }}" class="btn">← Up</a>
+    {% endif %}
     <label class="btn" style="cursor: pointer">
       🖼 Upload Map Image
-      <input type="file" style="display: none" accept="image/*" onchange="uploadMapImage(this)">
+      <input type="file" id="mapFileInput" style="display: none" accept="image/*">
     </label>
-    <button class="btn" onclick="enterAddPinMode()">+ Add Pin</button>
-    <button class="btn" onclick="resetZoom()">↺ Reset View</button>
-    <button class="btn" onclick="zoomMap(0.2)">+</button>
-    <button class="btn" onclick="zoomMap(-0.2)">−</button>
+    <button class="btn" id="addPinBtn">+ Add Pin</button>
+    <button class="btn" id="resetViewBtn">↺ Reset View</button>
+    <button class="btn" id="zoomInBtn">+</button>
+    <button class="btn" id="zoomOutBtn">−</button>
   </div>
 </div>
 
-<div class="world-map-container" id="mapContainer">
+<!-- Breadcrumb trail -->
+{% if breadcrumbs %}
+<div class="flex items-center gap-1 mb-4 text-sm text-mute">
+  <a href="{{ url_for('world.map_view') }}" class="btn btn-sm btn-ghost">🗺️ Root</a>
+  {% for crumb in breadcrumbs %}
+  <span>›</span>
+  <a href="{{ url_for('world.map_view', parent=crumb.id) }}" class="btn btn-sm btn-ghost">{{ crumb.name }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Map container -->
+<div id="mapContainer" style="position: relative; width: 100%; height: 70vh; min-height: 500px; background: var(--bg-elev-2); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;">
   <div id="mapViewport" style="width: 100%; height: 100%; overflow: hidden; position: relative; transform-origin: 0 0;">
     {% if map_image_path %}
-    <img src="{{ map_image_path }}" alt="World map"
-         style="width: 100%; height: 100%; object-fit: contain; display: block; user-select: none; pointer-events: none">
+    <img id="mapImg" src="{{ map_image_path }}" alt="World map"
+         style="width: 100%; height: 100%; object-fit: contain; display: block; user-select: none; pointer-events: none;">
     {% else %}
-    <canvas id="mapCanvas" width="1200" height="700" style="width: 100%; height: 100%; display: block"></canvas>
+    <div id="mapPlaceholder" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-mute);">
+      <div style="text-align:center">
+        <div style="font-size:3rem;margin-bottom:0.5rem">🗺️</div>
+        <div>Click "🖼 Upload Map Image" to add a background map</div>
+      </div>
+    </div>
     {% endif %}
-
-    <!-- Pins rendered as absolutely-positioned HTML elements -->
-    <div id="pinsLayer" style="position: absolute; inset: 0; pointer-events: none">
+    <!-- Pins layer -->
+    <div id="pinsLayer" style="position: absolute; inset: 0; pointer-events: none;">
       {% for e in entries %}
       {% if e.map_pin_x is not none %}
       <div class="world-map-pin" data-id="{{ e.id }}"
            style="left: {{ e.map_pin_x }}%; top: {{ e.map_pin_y }}%; pointer-events: auto">
-        <div class="pin-marker" style="background: {{ '#22c55e' if e.category == 'Capital' else ('#ec4899' if e.category == 'Ruins' else '#6366f1') }}"></div>
+        <div class="pin-marker" style="background: {{ e.map_pin_color or ('#22c55e' if e.category == 'Capital' else ('#ec4899' if e.category == 'Ruins' else '#6366f1')) }}"></div>
         <div class="pin-label">{{ e.name }}</div>
       </div>
       {% endif %}
@@ -50,6 +73,7 @@
   </div>
 </div>
 
+<!-- Unpinned locations -->
 <div class="card mt-4">
   <div class="card-title mb-2">Unpinned locations</div>
   {% set unpinned = entries | selectattr('map_pin_x', 'none') | list %}
@@ -63,38 +87,275 @@
   <div class="text-mute text-sm">All locations have pins.</div>
   {% endif %}
 </div>
-
-<div class="card mt-4">
-  <div class="card-title mb-2">How to use</div>
-  <div class="card-grid cols-3">
-    <div>
-      <div class="text-sm" style="color: var(--text); font-weight: 600; margin-bottom: 0.3rem">Map</div>
-      <div class="text-sm text-dim">• Upload an image with 🖼 button<br>• Mouse wheel to zoom<br>• Click + drag background to pan<br>• Click "+ Add Pin" then click map</div>
-    </div>
-    <div>
-      <div class="text-sm" style="color: var(--text); font-weight: 600; margin-bottom: 0.3rem">Pins</div>
-      <div class="text-sm text-dim">• Drag pin to reposition<br>• Click pin → popup with "View"<br>• Right-click pin → remove (entry kept)<br>• Pin color = category</div>
-    </div>
-    <div>
-      <div class="text-sm" style="color: var(--text); font-weight: 600; margin-bottom: 0.3rem">Tips</div>
-      <div class="text-sm text-dim">• Without an uploaded image, a placeholder grid is shown<br>• Pin positions are percentage-based (work on any image size)</div>
-    </div>
-  </div>
-</div>
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/world_map.js') }}"></script>
+<script>
+// === ALL MAP LOGIC INLINE — no external JS file, no cache issues ===
+
+(function() {
+  const container = document.getElementById("mapContainer");
+  const viewport = document.getElementById("mapViewport");
+  const fileInput = document.getElementById("mapFileInput");
+  const addPinBtn = document.getElementById("addPinBtn");
+  const resetViewBtn = document.getElementById("resetViewBtn");
+  const zoomInBtn = document.getElementById("zoomInBtn");
+  const zoomOutBtn = document.getElementById("zoomOutBtn");
+
+  if (!container || !viewport) return;
+
+  // State
+  let mapZoom = 1;
+  let mapPanX = 0, mapPanY = 0;
+  let isPanning = false;
+  let panStartX = 0, panStartY = 0;
+  let panStartPanX = 0, panStartPanY = 0;
+  let addPinMode = false;
+
+  // Entry data from Jinja
+  const entries = [
+    {% for e in entries %}
+    { id: "{{ e.id }}", name: "{{ e.name }}" }{% if not loop.last %},{% endif %}
+    {% endfor %}
+  ];
+
+  // ---- Transform helper ----
+  function applyTransform() {
+    viewport.style.transform = `translate(${mapPanX}px, ${mapPanY}px) scale(${mapZoom})`;
+  }
+
+  // ---- Zoom ----
+  function zoomMap(delta) {
+    mapZoom = Math.max(0.5, Math.min(3, mapZoom + delta));
+    applyTransform();
+  }
+
+  container.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    zoomMap(e.deltaY > 0 ? -0.1 : 0.1);
+  }, { passive: false });
+
+  zoomInBtn.addEventListener("click", () => zoomMap(0.2));
+  zoomOutBtn.addEventListener("click", () => zoomMap(-0.2));
+
+  resetViewBtn.addEventListener("click", () => {
+    mapZoom = 1; mapPanX = 0; mapPanY = 0;
+    applyTransform();
+  });
+
+  // ---- Pan ----
+  container.addEventListener("mousedown", (e) => {
+    if (e.target.closest(".world-map-pin")) return;
+    if (addPinMode) return;
+    isPanning = true;
+    panStartX = e.clientX;
+    panStartY = e.clientY;
+    panStartPanX = mapPanX;
+    panStartPanY = mapPanY;
+    container.style.cursor = "grabbing";
+  });
+
+  document.addEventListener("mousemove", (e) => {
+    if (isPanning) {
+      mapPanX = panStartPanX + (e.clientX - panStartX);
+      mapPanY = panStartPanY + (e.clientY - panStartY);
+      applyTransform();
+    }
+  });
+
+  document.addEventListener("mouseup", () => {
+    if (isPanning) {
+      isPanning = false;
+      container.style.cursor = "";
+    }
+  });
+
+  // ---- File upload ----
+  fileInput.addEventListener("change", async function() {
+    if (!this.files.length) return;
+    const file = this.files[0];
+    const fd = new FormData();
+    fd.append("file", file, file.name);
+    fd.append("csrf_token", getCsrfToken());
+    fd.append("parent", "{{ parent_id or 'root' }}");
+
+    showToast("Uploading map image…", "info", 0);
+
+    try {
+      const res = await fetch("/world/map/upload", {
+        method: "POST",
+        headers: { "X-CSRFToken": getCsrfToken() },
+        body: fd
+      });
+      const data = await res.json();
+
+      if (data.ok) {
+        showToast("Map uploaded! Reloading…", "success");
+        setTimeout(() => location.reload(), 600);
+      } else {
+        showToast(data.error || "Upload failed", "error", 5000);
+      }
+    } catch (err) {
+      showToast("Upload failed: " + err.message, "error", 5000);
+    }
+
+    this.value = ""; // reset input
+  });
+
+  // ---- Add pin mode ----
+  addPinBtn.addEventListener("click", () => {
+    addPinMode = true;
+    // Show color picker
+    const colorPicker = document.createElement("div");
+    colorPicker.id = "pinColorPicker";
+    colorPicker.style.cssText = "position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); background: var(--bg-elev-1); padding: 1.5rem; border-radius: 8px; box-shadow: var(--shadow-lg); z-index: 200; border: 1px solid var(--border)";
+    const colors = ["#22c55e", "#ec4899", "#6366f1", "#f59e0b", "#ef4444", "#06b6d4", "#a78bfa", "#fff"];
+    colorPicker.innerHTML = `
+      <div style="font-weight: 600; margin-bottom: 0.75rem">Choose pin color</div>
+      <div style="display: flex; gap: 0.5rem; flex-wrap: wrap">
+        ${colors.map(c => `<div class="pin-color-opt" data-color="${c}" style="width: 32px; height: 32px; border-radius: 50%; background: ${c}; cursor: pointer; border: 2px solid var(--border)"></div>`).join("")}
+      </div>
+      <button class="btn btn-sm btn-ghost mt-2" onclick="document.getElementById('pinColorPicker').remove()">Cancel</button>
+    `;
+    document.body.appendChild(colorPicker);
+    colorPicker.querySelectorAll(".pin-color-opt").forEach(opt => {
+      opt.addEventListener("click", function() {
+        window._selectedPinColor = this.dataset.color;
+        colorPicker.remove();
+        showToast("Click on the map to place a pin…", "info", 0);
+        container.style.cursor = "crosshair";
+      });
+    });
+  });
+
+  container.addEventListener("click", (e) => {
+    if (!addPinMode) return;
+    if (e.target.closest(".world-map-pin")) return;
+
+    const rect = viewport.getBoundingClientRect();
+    const x = ((e.clientX - rect.left - mapPanX) / rect.width / mapZoom) * 100;
+    const y = ((e.clientY - rect.top - mapPanY) / rect.height / mapZoom) * 100;
+
+    if (x < 0 || x > 100 || y < 0 || y > 100) {
+      showToast("Click within the map area.", "warning");
+      return;
+    }
+
+    addPinMode = false;
+    container.style.cursor = "";
+
+    // Build entry options — include option to create new
+    const options = entries.map(e => `<option value="${e.id}">${e.name}</option>`).join("");
+    const parentParam = "{{ parent_id or '' }}";
+    const newLocationUrl = parentParam ? `/world/new?type=location&parent=${parentParam}` : `/world/new?type=location`;
+
+    const backdrop = document.createElement("div");
+    backdrop.className = "modal-backdrop";
+    backdrop.innerHTML = `
+      <div class="modal">
+        <div class="modal-header"><h3 class="modal-title">Place a pin</h3></div>
+        <div class="modal-body">
+          <div class="text-sm text-dim mb-3">Position: x=${x.toFixed(1)}%, y=${y.toFixed(1)}%</div>
+          ${entries.length > 0 ? `
+          <div class="form-row">
+            <label class="form-label">Select location</label>
+            <select id="pinSelect" class="form-select">${options}</select>
+          </div>
+          ` : `
+          <div class="text-sm text-mute mb-2">No locations found on this level. Create one first:</div>
+          `}
+          <a href="${newLocationUrl}" class="btn btn-sm btn-ghost mt-2">+ Create New Location</a>
+        </div>
+        <div class="modal-footer">
+          <button class="btn" data-act="cancel">Cancel</button>
+          ${entries.length > 0 ? '<button class="btn btn-primary" data-act="ok">Place</button>' : ''}
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+
+    backdrop.querySelector('[data-act="cancel"]').onclick = () => backdrop.remove();
+    backdrop.querySelector('[data-act="ok"]').onclick = async () => {
+      const id = document.getElementById("pinSelect").value;
+      const { data } = await asmFetch("/world/map/pin", {
+        method: "POST", body: { id, x, y, color: window._selectedPinColor || "#6366f1" }
+      });
+      backdrop.remove();
+      if (data.ok) {
+        showToast("Pin placed.", "success");
+        setTimeout(() => location.reload(), 500);
+      } else {
+        showToast(data.error || "Failed", "error");
+      }
+    };
+  });
+
+  // ---- Pin interactions ----
+  document.querySelectorAll(".world-map-pin").forEach((pin) => {
+    let dragging = false;
+
+    pin.addEventListener("mousedown", (e) => {
+      dragging = true;
+      e.stopPropagation();
+      e.preventDefault();
+    });
+
+    document.addEventListener("mousemove", (e) => {
+      if (!dragging) return;
+      const rect = viewport.getBoundingClientRect();
+      const x = ((e.clientX - rect.left - mapPanX) / rect.width / mapZoom) * 100;
+      const y = ((e.clientY - rect.top - mapPanY) / rect.height / mapZoom) * 100;
+      pin.style.left = `${x}%`;
+      pin.style.top = `${y}%`;
+    });
+
+    document.addEventListener("mouseup", async () => {
+      if (!dragging) return;
+      dragging = false;
+      const x = parseFloat(pin.style.left);
+      const y = parseFloat(pin.style.top);
+      await asmFetch("/world/map/pin", {
+        method: "POST", body: { id: pin.dataset.id, x, y }
+      });
+      showToast("Pin saved.", "success", 1500);
+    });
+
+    // Click pin → popup
+    pin.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = pin.dataset.id;
+      const name = pin.querySelector(".pin-label").textContent;
+      const backdrop = document.createElement("div");
+      backdrop.className = "modal-backdrop";
+      backdrop.innerHTML = `
+        <div class="modal">
+          <div class="modal-header"><h3 class="modal-title">${escapeHtml(name)}</h3></div>
+          <div class="modal-body">
+            <div class="text-sm text-dim">Pin position: ${parseFloat(pin.style.left).toFixed(1)}%, ${parseFloat(pin.style.top).toFixed(1)}%</div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-danger" data-act="remove">Remove Pin</button>
+            <a class="btn" href="/world/${id}">View Details</a>
+            <a class="btn btn-primary" href="/world/map?parent=${id}">🗺️ Enter Sub-Map →</a>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(backdrop);
+      backdrop.querySelector('[data-act="remove"]').onclick = async () => {
+        const { data } = await asmFetch("/world/map/pin", {
+          method: "POST", body: { id, x: null, y: null }
+        });
+        if (data.ok) {
+          pin.remove();
+          backdrop.remove();
+          showToast("Pin removed.", "success", 1500);
+        }
+      };
+      backdrop.addEventListener("click", (e) => { if (e.target === backdrop) backdrop.remove(); });
+    });
+  });
+
+  console.log("World Map initialized successfully");
+})();
+</script>
 {% endblock %}
-
-<!-- Travel Routes SVG overlay -->
-<svg id="routeOverlay" style="position:absolute;inset:0;pointer-events:none;z-index:5;width:100%;height:100%"></svg>
-
-<!-- Route controls -->
-<div class="card mt-4" id="routeControls">
-  <div class="flex items-center justify-between mb-3">
-    <div class="card-title" style="margin:0">🛤 Travel Routes</div>
-    <button class="btn btn-sm btn-primary" onclick="openRouteModal()">+ New Route</button>
-  </div>
-  <div id="routeList" class="flex flex-col gap-1"></div>
-</div>

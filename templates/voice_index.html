@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Character Voice Profiles{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('characters.list_view') }}">Characters</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Voice Profiles</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>🗣 Character Voice Profiles</h1>
+    <div class="subtitle">Define how each character speaks — favorite words, catchphrases, sentence length, formality — then scan your manuscript for dialogue inconsistencies.</div>
+  </div>
+</div>
+
+{% if characters %}
+<div class="card-grid cols-3">
+  {% for c in characters %}
+  <div class="card" style="cursor: pointer" onclick="window.location.href='{{ url_for('voice.profile', character_id=c.id) }}'">
+    <div class="flex items-center gap-2 mb-2">
+      <span class="avatar avatar-sm" style="background: {{ c.avatar_color }}; width: 32px; height: 32px; font-size: 0.9rem">{{ c.name[:1]|upper }}</span>
+      <div class="flex-1">
+        <div style="font-weight: 600">{{ c.name }}</div>
+        <div class="text-xs text-mute">{{ c.role }}</div>
+      </div>
+    </div>
+    {% if c.has_profile %}
+    <div class="flex gap-1 flex-wrap">
+      <span class="badge">{{ c.verbosity }}</span>
+      <span class="badge">{{ c.formality }}</span>
+    </div>
+    <a href="{{ url_for('voice.scan', character_id=c.id) }}" class="btn btn-sm btn-ghost mt-2"
+       onclick="event.stopPropagation()">🔍 Scan dialogue</a>
+    {% else %}
+    <div class="text-xs text-mute">No profile yet — click to create.</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card empty-state" style="padding: 3rem; text-align: center">
+  <div class="text-3xl mb-2">🗣</div>
+  <div class="text-mute text-sm">No characters yet. Create a character first.</div>
+  <a href="{{ url_for('characters.new') }}" class="btn btn-primary mt-3">+ New Character</a>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+{% block title %}Compile Wizard{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('export.index') }}">Export</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Compile Wizard</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>📕 Manuscript Compile Wizard</h1>
+    <div class="subtitle">Build a publication-ready manuscript with title page, dedication, TOC, and back matter.</div>
+  </div>
+  <div class="flex gap-2">
+    <button class="btn" onclick="previewCompile()">🔍 Preview Structure</button>
+    <button class="btn btn-primary" onclick="downloadCompile('html')">⬇ Download HTML</button>
+    <button class="btn" onclick="downloadCompile('docx')">⬇ DOCX</button>
+    <button class="btn btn-ghost" onclick="downloadCompile('txt')">⬇ TXT</button>
+    <button class="btn btn-ghost" onclick="downloadCompile('md')">⬇ MD</button>
+  </div>
+</div>
+
+<form id="compileForm" class="card mb-6">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <!-- Front matter -->
+  <div class="card-title mb-3">📄 Front Matter</div>
+  <div class="flex flex-col gap-2 mb-4">
+    <label class="flex items-center gap-2 text-sm">
+      <input type="checkbox" name="include_title_page" value="true" {{ 'checked' if config.include_title_page }}>
+      Include title page (title + author)
+    </label>
+    <label class="flex items-center gap-2 text-sm">
+      <input type="checkbox" name="include_copyright" value="true" {{ 'checked' if config.include_copyright }}>
+      Include copyright notice
+    </label>
+    <div class="form-row" style="margin-left: 1.5rem">
+      <textarea name="copyright_text" class="form-textarea" rows="2">{{ config.copyright_text }}</textarea>
+    </div>
+    <label class="flex items-center gap-2 text-sm">
+      <input type="checkbox" name="include_dedication" value="true" {{ 'checked' if config.include_dedication }}>
+      Include dedication
+    </label>
+    <div class="form-row" style="margin-left: 1.5rem">
+      <textarea name="dedication_text" class="form-textarea" rows="2" placeholder="For those who believed…">{{ config.dedication_text }}</textarea>
+    </div>
+    <label class="flex items-center gap-2 text-sm">
+      <input type="checkbox" name="include_epigraph" value="true" {{ 'checked' if config.include_epigraph }}>
+      Include epigraph (opening quote)
+    </label>
+    <div class="card-grid cols-2" style="margin-left: 1.5rem">
+      <div class="form-row">
+        <textarea name="epigraph_text" class="form-textarea" rows="2" placeholder="The quote…">{{ config.epigraph_text }}</textarea>
+      </div>
+      <div class="form-row">
+        <input type="text" name="epigraph_attribution" class="form-input" value="{{ config.epigraph_attribution }}" placeholder="— Author of quote">
+      </div>
+    </div>
+    <label class="flex items-center gap-2 text-sm">
+      <input type="checkbox" name="include_toc" value="true" {{ 'checked' if config.include_toc }}>
+      Include table of contents
+    </label>
+    <label class="flex items-center gap-2 text-sm">
+      <input type="checkbox" name="include_acknowledgments" value="true" {{ 'checked' if config.include_acknowledgments }}>
+      Include acknowledgments
+    </label>
+    <div class="form-row" style="margin-left: 1.5rem">
+      <textarea name="acknowledgments_text" class="form-textarea" rows="3" placeholder="Thank you to…">{{ config.acknowledgments_text }}</textarea>
+    </div>
+  </div>
+
+  <!-- Chapter formatting -->
+  <div class="card-title mb-3 mt-4">📝 Chapter Formatting</div>
+  <div class="card-grid cols-3 mb-4">
+    <div class="form-row">
+      <label class="form-label">Chapter number format</label>
+      <select name="chapter_number_format" class="form-select">
+        <option value="none" {{ 'selected' if config.chapter_number_format == 'none' }}>No chapter number</option>
+        <option value="chapter" {{ 'selected' if config.chapter_number_format == 'chapter' }}>"Chapter 1"</option>
+        <option value="number" {{ 'selected' if config.chapter_number_format == 'number' }}>Just "1"</option>
+        <option value="chapter_number" {{ 'selected' if config.chapter_number_format == 'chapter_number' }}>"Chapter 1: Title"</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Chapter title prefix (optional)</label>
+      <input type="text" name="chapter_title_prefix" class="form-input" value="{{ config.chapter_title_prefix }}" placeholder="e.g. '~ '">
+    </div>
+    <div class="form-row">
+      <label class="form-label">Scene break marker</label>
+      <input type="text" name="scene_break_marker" class="form-input" value="{{ config.scene_break_marker }}" placeholder="* * *">
+    </div>
+  </div>
+  <div class="card-grid cols-2 mb-4">
+    <div class="form-row">
+      <label class="form-label">Chapter status filter</label>
+      <select name="chapter_status_filter" class="form-select">
+        <option value="all" {{ 'selected' if config.chapter_status_filter == 'all' }}>All chapters</option>
+        <option value="draft" {{ 'selected' if config.chapter_status_filter == 'draft' }}>Draft only</option>
+        <option value="revised" {{ 'selected' if config.chapter_status_filter == 'revised' }}>Revised only</option>
+        <option value="final" {{ 'selected' if config.chapter_status_filter == 'final' }}>Final only</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Default download format</label>
+      <select name="format" class="form-select">
+        <option value="html" {{ 'selected' if config.format == 'html' }}>HTML</option>
+        <option value="docx" {{ 'selected' if config.format == 'docx' }}>DOCX</option>
+        <option value="txt" {{ 'selected' if config.format == 'txt' }}>TXT</option>
+        <option value="md" {{ 'selected' if config.format == 'md' }}>Markdown</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Back matter -->
+  <div class="card-title mb-3 mt-4">📕 Back Matter</div>
+  <div class="flex flex-col gap-2 mb-4">
+    <label class="flex items-center gap-2 text-sm">
+      <input type="checkbox" name="include_author_note" value="true" {{ 'checked' if config.include_author_note }}>
+      Include author's note
+    </label>
+    <div class="form-row" style="margin-left: 1.5rem">
+      <textarea name="author_note_text" class="form-textarea" rows="3" placeholder="A note to the reader…">{{ config.author_note_text }}</textarea>
+    </div>
+    <label class="flex items-center gap-2 text-sm">
+      <input type="checkbox" name="include_about_author" value="true" {{ 'checked' if config.include_about_author }}>
+      Include about-the-author
+    </label>
+    <div class="form-row" style="margin-left: 1.5rem">
+      <textarea name="about_author_text" class="form-textarea" rows="3" placeholder="Author bio…">{{ config.about_author_text }}</textarea>
+    </div>
+    <label class="flex items-center gap-2 text-sm">
+      <input type="checkbox" name="include_other_books" value="true" {{ 'checked' if config.include_other_books }}>
+      Include other-books-by-author
+    </label>
+    <div class="form-row" style="margin-left: 1.5rem">
+      <textarea name="other_books_text" class="form-textarea" rows="3" placeholder="Other works…">{{ config.other_books_text }}</textarea>
+    </div>
+  </div>
+
+  <div class="flex justify-end gap-2">
+    <button type="submit" class="btn btn-primary">💾 Save Configuration</button>
+  </div>
+</form>
+
+<!-- Preview box -->
+<div class="card" id="previewBox" style="display: none">
+  <div class="flex items-center justify-between mb-3">
+    <div class="card-title">🔍 Compile Preview</div>
+    <button class="btn btn-sm btn-ghost" onclick="document.getElementById('previewBox').style.display='none'">Close</button>
+  </div>
+  <div id="previewContent"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById("compileForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const payload = {};
+  // Convert checkboxes to booleans, other fields to strings
+  for (const [k, v] of fd.entries()) {
+    if (k.startsWith("include_")) {
+      payload[k] = true;
+    } else if (!(k in payload)) {
+      payload[k] = v;
+    }
+  }
+  // Ensure all include_ fields default to false if not checked
+  ["include_title_page","include_copyright","include_dedication","include_epigraph",
+   "include_toc","include_acknowledgments","include_author_note","include_about_author",
+   "include_other_books"].forEach(k => {
+    if (!(k in payload)) payload[k] = false;
+  });
+  const { data } = await asmFetch("/compile/api/config", { method: "POST", body: payload });
+  if (data.ok) {
+    showToast("Compile configuration saved!", "success");
+  } else {
+    showToast(data.error || "Failed", "error");
+  }
+});
+
+async function previewCompile() {
+  const { data } = await asmFetch("/compile/api/preview", { method: "GET" });
+  if (!data.ok) { showToast(data.error || "Failed", "error"); return; }
+  const box = document.getElementById("previewBox");
+  const content = document.getElementById("previewContent");
+  const html = `
+    <div class="card-grid cols-3 mb-3">
+      <div><strong>Title:</strong> ${escapeHtml(data.title)}</div>
+      <div><strong>Author:</strong> ${escapeHtml(data.author)}</div>
+      <div><strong>Chapters:</strong> ${data.chapter_count}</div>
+      <div><strong>Total words:</strong> ${data.total_words.toLocaleString()}</div>
+      <div><strong>Sections:</strong> ${data.sections.length}</div>
+    </div>
+    <div class="flex flex-col gap-1">
+      ${data.sections.map((s, i) => `
+        <div class="card" style="padding: 0.6rem; border-left: 3px solid var(--accent)">
+          <div class="flex items-center gap-2">
+            <span class="badge">${s.type}</span>
+            <strong>${escapeHtml(s.heading || '(no heading)')}</strong>
+            ${s.word_count != null ? `<span class="text-xs text-mute">${s.word_count} words</span>` : ''}
+          </div>
+          ${s.body_preview ? `<div class="text-xs text-mute mt-1">${escapeHtml(s.body_preview)}</div>` : ''}
+        </div>
+      `).join("")}
+    </div>
+  `;
+  content.innerHTML = html;
+  box.style.display = "block";
+  box.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function downloadCompile(fmt) {
+  showToast(`Compiling ${fmt.toUpperCase()}…`, "info", 2000);
+  setTimeout(() => {
+    window.location.href = `/compile/download?format=${fmt}`;
+  }, 200);
+}
+</script>
+{% endblock %}

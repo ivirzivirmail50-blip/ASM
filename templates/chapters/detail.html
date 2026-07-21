@@ -146,6 +146,23 @@
     </div>
     {% endif %}
 
+    
+    <!-- Editorial Checklist -->
+    <div class="card" id="checklistCard">
+      <div class="flex items-center justify-between mb-3">
+        <div class="card-title" style="margin:0">✅ Editorial Checklist</div>
+        <span class="badge no-dot" id="checklistProgress" style="font-size: 0.7rem">0%</span>
+      </div>
+      <div class="progress mb-3" style="height: 6px">
+        <div class="progress-bar accent" id="checklistBar" style="width: 0%"></div>
+      </div>
+      <div id="checklistItems" class="flex flex-col gap-1"></div>
+      <div class="flex gap-2 mt-2">
+        <input type="text" id="newChecklistItem" class="form-input" placeholder="Add checklist item..." style="flex:1; font-size: 0.85rem">
+        <button class="btn btn-sm btn-primary" onclick="addChecklistItem()">+ Add</button>
+      </div>
+    </div>
+
     <!-- Actions -->
     <div class="card">
       <div class="card-title mb-2">Actions</div>

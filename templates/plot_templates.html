@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Plot Structure Templates{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('plans.board') }}">Plans</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Plot Structure Templates</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>🎭 Plot Structure Templates</h1>
+    <div class="subtitle">Apply a classic story structure to your outline. Each template generates a set of beat-stub plans on its own track.</div>
+  </div>
+  <a href="{{ url_for('plans.outline') }}" class="btn btn-ghost">← Back to Outline</a>
+</div>
+
+{% if detail_key %}
+<!-- Detail view: show beats of selected template -->
+<div class="card mb-6">
+  <div class="flex items-center justify-between mb-3">
+    <div>
+      <div class="text-2xl">{{ detail_tmpl.icon }} {{ detail_tmpl.name }}</div>
+      <div class="text-sm text-mute mt-1">{{ detail_tmpl.summary }}</div>
+      <div class="text-xs text-mute mt-1">{{ detail_tmpl.beats|length }} beats</div>
+    </div>
+    <div class="flex gap-2">
+      <a href="{{ url_for('plot_templates.index') }}" class="btn btn-sm">← All templates</a>
+      <button class="btn btn-sm btn-primary" onclick="applyTemplate('{{ detail_key }}')">
+        Apply this structure →
+      </button>
+    </div>
+  </div>
+  <div class="flex flex-col gap-2 mt-4">
+    {% for name, desc, status, event_type in detail_tmpl.beats %}
+    <div class="card" style="padding: 0.9rem; display: flex; gap: 0.9rem; align-items: flex-start">
+      <div class="beat-marker" style="min-width: 36px; height: 36px; border-radius: 50%; background: var(--accent); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700">
+        {{ loop.index }}
+      </div>
+      <div class="flex-1">
+        <div style="font-weight: 600; font-size: 1rem">{{ name }}</div>
+        <p class="text-sm mt-1" style="line-height: 1.55">{{ desc }}</p>
+        <div class="flex gap-2 mt-2">
+          <span class="badge">suggested status: {{ status }}</span>
+          <span class="badge">event type: {{ event_type }}</span>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="mt-4 p-3" style="background: var(--bg-elev-2); border-radius: 8px; border-left: 3px solid var(--accent)">
+    <div class="text-sm">
+      <strong>What "Apply" does:</strong> Creates one plan per beat on a new track named
+      <code>plot:{{ detail_key }}</code>. Each plan's description explains what that beat should accomplish.
+      You can then drag them onto your Kanban board or expand them in the outline.
+    </div>
+  </div>
+</div>
+{% else %}
+<!-- Grid of all templates -->
+<div class="card-grid cols-2">
+  {% for t in templates %}
+  <div class="card" style="cursor: pointer" onclick="window.location.href='{{ url_for('plot_templates.detail', key=t.key) }}'">
+    <div class="flex items-start gap-3">
+      <span class="text-3xl">{{ t.icon }}</span>
+      <div class="flex-1">
+        <div style="font-weight: 600; font-size: 1.1rem">{{ t.name }}</div>
+        <p class="text-sm text-mute mt-1" style="line-height: 1.5">{{ t.summary }}</p>
+        <div class="flex items-center justify-between mt-3">
+          <span class="badge">{{ t.beat_count }} beats</span>
+          <span class="text-xs text-mute">View details →</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="card mt-6" style="background: var(--bg-elev-2); border-left: 3px solid var(--accent)">
+  <div class="text-sm">
+    <strong>Tip:</strong> Each template creates plans on its own track
+    (<code>plot:&lt;template-key&gt;</code>), so applying multiple structures won't clutter your main outline.
+    Open the Outline page and filter by track to see only the beats of one structure.
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function applyTemplate(key) {
+  const ok = await confirmDialog(
+    `Apply this plot structure?\n\nThis will create a new track with one plan per beat. You can delete them later if you change your mind.`,
+    { okLabel: "Apply", danger: false }
+  );
+  if (!ok) return;
+  const { data } = await asmFetch("/plot-templates/api/apply", {
+    method: "POST",
+    body: { key }
+  });
+  if (data.ok) {
+    showToast(`Created ${data.beats_created} beat plans on track "${data.track}"`, "success", 4000);
+    setTimeout(() => window.location.href = "{{ url_for('plans.outline') }}", 1200);
+  } else {
+    showToast(data.error || "Failed to apply template", "error");
+  }
+}
+</script>
+{% endblock %}

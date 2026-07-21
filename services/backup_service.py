@@ -57,7 +57,10 @@ def restore_backup(backup_path: str) -> None:
                 with zf.open(member) as src, open(Config.DB_PATH, "wb") as dst:
                     dst.write(src.read())
             elif member.startswith("raw/"):
-                target = Config.DATA_DIR / member
+                target = (Config.DATA_DIR / member).resolve()
+                if not str(target).startswith(str(Config.DATA_DIR.resolve())):
+                    log.warning("Skipping path traversal: %s", member)
+                    continue
                 target.parent.mkdir(parents=True, exist_ok=True)
                 with zf.open(member) as src, open(target, "wb") as dst:
                     dst.write(src.read())

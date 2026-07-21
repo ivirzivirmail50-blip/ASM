@@ -1,0 +1,295 @@
+{% extends "base.html" %}
+{% block title %}Submission Tracker{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Submission Tracker</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>📤 Submission Tracker</h1>
+    <div class="subtitle">Track where you sent your work, how long they took to respond, and what came back.</div>
+  </div>
+  <button class="btn btn-primary" onclick="openSubmissionModal()">+ New Submission</button>
+</div>
+
+<!-- Stats summary -->
+<div class="card-grid cols-5 mb-6">
+  <div class="card text-center">
+    <div class="card-subtitle">Total</div>
+    <div style="font-size: 1.7rem; font-weight: 600">{{ stats.total }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Pending</div>
+    <div style="font-size: 1.7rem; font-weight: 600; color: var(--warning)">{{ stats.pending }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Accepted</div>
+    <div style="font-size: 1.7rem; font-weight: 600; color: var(--success)">{{ stats.accepted }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Rejected</div>
+    <div style="font-size: 1.7rem; font-weight: 600; color: var(--danger)">{{ stats.rejected }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Acceptance rate</div>
+    <div style="font-size: 1.7rem; font-weight: 600; color: var(--accent-hover)">{{ stats.acceptance_rate }}%</div>
+  </div>
+</div>
+
+<!-- Avg response time -->
+{% if stats.avg_response_days > 0 %}
+<div class="card mb-6" style="background: var(--bg-elev-2)">
+  <div class="flex items-center gap-4">
+    <span class="text-2xl">⏱</span>
+    <div>
+      <div class="text-sm">Average response time across all completed submissions:</div>
+      <div>
+        <strong style="color: var(--accent-hover); font-size: 1.2rem">{{ stats.avg_response_days }}</strong> days avg ·
+        <strong>{{ stats.median_response_days }}</strong> days median
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Filters -->
+<form method="get" class="card mb-4" style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap">
+  <span class="text-sm text-mute">Filter:</span>
+  <select name="status" class="form-select" style="width: auto">
+    <option value="all" {{ 'selected' if current_status == 'all' }}>All statuses</option>
+    {% for key, st in statuses.items() %}
+    <option value="{{ key }}" {{ 'selected' if current_status == key }}>{{ st.icon }} {{ st.label }} ({{ stats.by_status.get(key, 0) }})</option>
+    {% endfor %}
+  </select>
+  <select name="market_type" class="form-select" style="width: auto">
+    <option value="all" {{ 'selected' if current_market_type == 'all' }}>All market types</option>
+    {% for key, mt in market_types.items() %}
+    <option value="{{ key }}" {{ 'selected' if current_market_type == key }}>{{ mt.icon }} {{ mt.label }} ({{ stats.by_market.get(key, 0) }})</option>
+    {% endfor %}
+  </select>
+  <button class="btn btn-sm" type="submit">Filter</button>
+  <a href="{{ url_for('submissions.index') }}" class="btn btn-sm btn-ghost">Reset</a>
+</form>
+
+<!-- Submissions table -->
+<div class="card mb-6">
+  <div class="card-title mb-3">📋 Submissions</div>
+  {% if submissions %}
+  <div class="table-wrap" style="overflow-x: auto">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Title</th>
+          <th>Market</th>
+          <th>Type</th>
+          <th>Status</th>
+          <th>Submitted</th>
+          <th>Response</th>
+          <th>Days</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in submissions %}
+        <tr>
+          <td>
+            <strong>{{ s.title }}</strong>
+            {% if s.notes %}<div class="text-xs text-mute" style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ s.notes }}</div>{% endif %}
+          </td>
+          <td>{{ s.market_name }}</td>
+          <td>{{ s.market_icon }} {{ s.market_type_label }}</td>
+          <td>
+            <span class="badge" style="background: {{ s.status_color }}22; color: {{ s.status_color }}; border: 1px solid {{ s.status_color }}44">
+              {{ s.status_icon }} {{ s.status_label }}
+            </span>
+          </td>
+          <td>{{ s.submitted_date or '—' }}</td>
+          <td>{{ s.response_date or '—' }}</td>
+          <td>{{ s.days_to_respond if s.days_to_respond is not none else '—' }}</td>
+          <td>
+            <div class="flex gap-1">
+              <button class="btn btn-sm" onclick="editSubmission({{ s | tojson }})">✎</button>
+              <button class="btn btn-sm btn-ghost text-danger" onclick="deleteSubmission('{{ s.id }}', {{ s.title | tojson }})">×</button>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state" style="padding: 2rem; text-align: center">
+    <div class="text-3xl mb-2">📤</div>
+    <div class="text-mute text-sm">
+      No submissions tracked yet. Click "+ New Submission" to record where you sent your work.
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Markets summary -->
+{% if markets %}
+<div class="card">
+  <div class="card-title mb-3">🏪 Markets ({{ markets | length }})</div>
+  <div class="card-grid cols-3">
+    {% for m in markets %}
+    <div class="card" style="padding: 0.9rem">
+      <div class="flex items-center gap-2 mb-2">
+        <span class="text-xl">{{ m.icon }}</span>
+        <strong>{{ m.name }}</strong>
+        <span class="text-xs text-mute ml-auto">{{ m.submissions }} sub{{ 's' if m.submissions != 1 else '' }}</span>
+      </div>
+      <div class="flex gap-2 text-xs">
+        <span class="badge" style="background: var(--success)22; color: var(--success)">{{ m.accepted }} accepted</span>
+        <span class="badge" style="background: var(--danger)22; color: var(--danger)">{{ m.rejected }} rejected</span>
+        <span class="badge" style="background: var(--warning)22; color: var(--warning)">{{ m.pending }} pending</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+let _chapters = [];
+
+async function loadChapters() {
+  const { data } = await asmFetch("/submissions/api/chapters", { method: "GET" });
+  if (data.ok) _chapters = data.chapters;
+}
+loadChapters();
+
+const STATUSES = {
+  drafting:  "📝 Drafting",
+  submitted: "📤 Submitted",
+  in_review: "⏳ In Review",
+  accepted:  "✓ Accepted",
+  rejected:  "✕ Rejected",
+  withdrawn: "↩ Withdrawn",
+  published: "🎉 Published",
+};
+const MARKET_TYPES = {
+  magazine:  "📰 Magazine",
+  agent:     "🤝 Agent",
+  publisher: "📚 Publisher",
+  contest:   "🏆 Contest",
+  anthology: "📖 Anthology",
+  other:     "📝 Other",
+};
+
+function openSubmissionModal(initial) {
+  initial = initial || {};
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal modal-lg">
+      <div class="modal-header"><h3 class="modal-title">${initial.id ? 'Edit Submission' : 'New Submission'}</h3></div>
+      <div class="modal-body">
+        <div class="card-grid cols-2">
+          <div class="form-row">
+            <label class="form-label">Title (what you submitted) <span class="text-danger">*</span></label>
+            <input type="text" id="sub_title" class="form-input" value="${escapeHtml(initial.title || '')}" placeholder="e.g. 'The Cartographer's Daughter'">
+          </div>
+          <div class="form-row">
+            <label class="form-label">Market name <span class="text-danger">*</span></label>
+            <input type="text" id="sub_market" class="form-input" value="${escapeHtml(initial.market_name || '')}" placeholder="e.g. Clarkesworld Magazine">
+          </div>
+        </div>
+        <div class="card-grid cols-3">
+          <div class="form-row">
+            <label class="form-label">Market type</label>
+            <select id="sub_market_type" class="form-select">
+              ${Object.entries(MARKET_TYPES).map(([k, v]) => `<option value="${k}" ${initial.market_type === k ? 'selected' : ''}>${v}</option>`).join("")}
+            </select>
+          </div>
+          <div class="form-row">
+            <label class="form-label">Status</label>
+            <select id="sub_status" class="form-select">
+              ${Object.entries(STATUSES).map(([k, v]) => `<option value="${k}" ${initial.status === k ? 'selected' : ''}>${v}</option>`).join("")}
+            </select>
+          </div>
+          <div class="form-row">
+            <label class="form-label">Linked chapter (optional)</label>
+            <select id="sub_chapter" class="form-select">
+              <option value="">— none —</option>
+              ${_chapters.map(c => `<option value="${c.id}" ${initial.chapter_id === c.id ? 'selected' : ''}>${escapeHtml(c.title)} (${c.status})</option>`).join("")}
+            </select>
+          </div>
+        </div>
+        <div class="card-grid cols-3">
+          <div class="form-row">
+            <label class="form-label">Submitted date</label>
+            <input type="date" id="sub_submitted" class="form-input" value="${initial.submitted_date || ''}">
+          </div>
+          <div class="form-row">
+            <label class="form-label">Response date</label>
+            <input type="date" id="sub_response" class="form-input" value="${initial.response_date || ''}">
+          </div>
+          <div class="form-row">
+            <label class="form-label">Response type</label>
+            <select id="sub_response_type" class="form-select">
+              <option value="">— n/a —</option>
+              <option value="accept" ${initial.response_type === 'accept' ? 'selected' : ''}>Accept</option>
+              <option value="reject" ${initial.response_type === 'reject' ? 'selected' : ''}>Reject</option>
+              <option value="revise" ${initial.response_type === 'revise' ? 'selected' : ''}>Revise & Resub</option>
+              <option value="withdrawn" ${initial.response_type === 'withdrawn' ? 'selected' : ''}>Withdrawn</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Cover letter (optional)</label>
+          <textarea id="sub_cover" class="form-textarea" rows="4" placeholder="Paste the cover letter you sent…">${escapeHtml(initial.cover_letter || '')}</textarea>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Notes</label>
+          <textarea id="sub_notes" class="form-textarea" rows="3" placeholder="Feedback received, things to remember…">${escapeHtml(initial.notes || '')}</textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" data-act="cancel">Cancel</button>
+        <button class="btn btn-primary" data-act="ok">Save</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  backdrop.querySelector('[data-act="cancel"]').onclick = () => backdrop.remove();
+  backdrop.onclick = (e) => { if (e.target === backdrop) backdrop.remove(); };
+  backdrop.querySelector('[data-act="ok"]').onclick = async () => {
+    const payload = {
+      title: document.getElementById("sub_title").value.trim(),
+      market_name: document.getElementById("sub_market").value.trim(),
+      market_type: document.getElementById("sub_market_type").value,
+      status: document.getElementById("sub_status").value,
+      chapter_id: document.getElementById("sub_chapter").value || null,
+      submitted_date: document.getElementById("sub_submitted").value,
+      response_date: document.getElementById("sub_response").value,
+      response_type: document.getElementById("sub_response_type").value,
+      cover_letter: document.getElementById("sub_cover").value,
+      notes: document.getElementById("sub_notes").value,
+    };
+    if (!payload.title || !payload.market_name) { showToast("Title and market required", "warning"); return; }
+    const url = initial.id ? `/submissions/api/${initial.id}` : "/submissions/api/new";
+    const { data } = await asmFetch(url, { method: "POST", body: payload });
+    backdrop.remove();
+    if (data.ok) { showToast("Saved!", "success"); setTimeout(() => location.reload(), 500); }
+    else { showToast(data.error || "Failed", "error"); }
+  };
+}
+
+function editSubmission(sub) {
+  openSubmissionModal(sub);
+}
+
+async function deleteSubmission(id, title) {
+  const ok = await confirmDialog(`Delete submission "${title}"?`, { danger: true, okLabel: "Delete" });
+  if (!ok) return;
+  const { data } = await asmFetch(`/submissions/api/${id}/delete`, { method: "POST" });
+  if (data.ok) { showToast("Deleted", "success"); setTimeout(() => location.reload(), 500); }
+}
+</script>
+{% endblock %}

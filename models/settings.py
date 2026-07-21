@@ -66,7 +66,7 @@ class Setting(Base):
 
     @classmethod
     def set(cls, session, key: str, value: Any) -> None:
-        v = json.dumps(value) if not isinstance(value, str) else value
+        v = json.dumps(value) if not isinstance(value, str) else json.dumps(value)
         row = session.query(cls).filter_by(key=key).first()
         if row is None:
             session.add(cls(key=key, value=v))

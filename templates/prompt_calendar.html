@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Prompt Calendar{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('inspiration.index') }}">Inspiration</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Prompt Calendar</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>📅 Prompt Calendar</h1>
+    <div class="subtitle">A writing prompt for every day. Click any day to see the full prompt and start writing.</div>
+  </div>
+  <a href="{{ url_for('inspiration.index') }}" class="btn btn-ghost">← Inspiration Hub</a>
+</div>
+
+<!-- Today's prompt (highlighted) -->
+<div class="card mb-6" style="background: linear-gradient(135deg, var(--bg-elev-2), var(--bg-elev-3)); border: 1px solid var(--accent)">
+  <div class="flex items-center justify-between mb-2">
+    <div>
+      <div class="text-xs text-mute uppercase tracking-wide">Today's Prompt · {{ today_prompt.date }}</div>
+      <div class="text-lg font-semibold mt-1">{{ today_prompt.icon }} {{ today_prompt.category_label }}</div>
+    </div>
+    <div class="flex gap-2">
+      <button class="btn btn-sm" onclick="savePrompt({{ today_prompt | tojson }})">📌 Save</button>
+      <button class="btn btn-sm btn-primary" onclick="promptToChapter({{ today_prompt.text | tojson }})">→ New Chapter</button>
+    </div>
+  </div>
+  <p style="line-height: 1.6; font-size: 1.05rem">{{ today_prompt.text }}</p>
+</div>
+
+<!-- Month navigation -->
+<div class="flex items-center justify-between mb-4">
+  <a href="{{ url_for('prompt_calendar.index', year=month_data.prev_month[0], month=month_data.prev_month[1]) }}"
+     class="btn btn-ghost">← {{ month_data.prev_month[1] }}/{{ month_data.prev_month[0] }}</a>
+  <h2 style="font-size: 1.3rem; font-weight: 600">{{ month_data.month_name }}</h2>
+  <a href="{{ url_for('prompt_calendar.index', year=month_data.next_month[0], month=month_data.next_month[1]) }}"
+     class="btn btn-ghost">{{ month_data.next_month[1] }}/{{ month_data.next_month[0] }} →</a>
+</div>
+
+<!-- Calendar grid -->
+<div class="card mb-6">
+  <table style="width: 100%; border-collapse: collapse">
+    <thead>
+      <tr>
+        {% for day_name in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] %}
+        <th style="padding: 0.5rem; text-align: center; color: var(--text-mute); font-size: 0.85rem">{{ day_name }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for week in month_data.weeks %}
+      <tr>
+        {% for day in week %}
+        <td style="padding: 2px; vertical-align: top; width: 14.28%; height: 110px;
+                   background: {{ 'var(--bg-elev-2)' if day.in_month else 'var(--bg)' }};
+                   {% if day.is_today %}outline: 2px solid var(--accent); outline-offset: -2px;{% endif %}">
+          <div class="prompt-day-cell" data-day='{{ day | tojson }}'
+               style="padding: 0.4rem; height: 100%; cursor: pointer">
+            <div class="flex items-center justify-between mb-1">
+              <span style="font-size: 0.85rem; font-weight: {{ '700' if day.is_today else '400' }}; color: {{ 'var(--text-mute)' if not day.in_month else 'var(--text)' }}">{{ day.day }}</span>
+              <span style="font-size: 1rem">{{ day.icon }}</span>
+            </div>
+            <div class="text-xs" style="line-height: 1.3; color: var(--text-dim); max-height: 4.5em; overflow: hidden">
+              {{ day.text[:80] }}{% if day.text|length > 80 %}…{% endif %}
+            </div>
+          </div>
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Category legend -->
+<div class="card">
+  <div class="card-title mb-2">Prompt Categories</div>
+  <div class="flex gap-2 flex-wrap">
+    {% for key, cat in inspiration_categories %}
+    <span class="badge">{{ cat.icon }} {{ cat.label }}</span>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Day prompt modal (hidden, populated by JS) -->
+<div id="dayModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; padding: 2rem"
+     onclick="if(event.target===this) this.style.display='none'">
+  <div class="modal modal-lg" style="margin: 2rem auto; background: var(--bg-elev-1); border-radius: 8px; padding: 2rem; max-width: 700px">
+    <div id="dayModalContent"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Attach click handlers to all day cells
+document.querySelectorAll(".prompt-day-cell").forEach(cell => {
+  cell.addEventListener("click", function() {
+    const day = JSON.parse(this.dataset.day);
+    showDayPrompt(day);
+  });
+});
+
+function showDayPrompt(day) {
+  const modal = document.getElementById("dayModal");
+  const content = document.getElementById("dayModalContent");
+  content.innerHTML = `
+    <div class="text-xs text-mute uppercase tracking-wide">${escapeHtml(day.date)}</div>
+    <div class="text-lg font-semibold mt-1 mb-3">${escapeHtml(day.icon)} ${escapeHtml(day.category_label)}</div>
+    <p style="line-height: 1.7; font-size: 1.05rem; margin-bottom: 1.5rem">${escapeHtml(day.text)}</p>
+    <div class="flex gap-2 justify-end">
+      <button class="btn" onclick='savePromptFromDay(${JSON.stringify(day).replace(/'/g, "&#39;")})'>📌 Save</button>
+      <button class="btn btn-primary" onclick='dayPromptToChapter(${JSON.stringify(day.text).replace(/'/g, "&#39;")})'>→ New Chapter</button>
+    </div>
+  `;
+  modal.style.display = "block";
+}
+
+async function savePrompt(prompt) {
+  const { data } = await asmFetch("/inspiration/api/save", {
+    method: "POST",
+    body: {
+      kind: "prompt",
+      category: prompt.category || prompt.category_label,
+      body: prompt.text,
+    }
+  });
+  if (data.ok) { showToast("Prompt saved!", "success"); }
+  else { showToast(data.error || "Failed", "error"); }
+}
+
+function savePromptFromDay(day) {
+  savePrompt(day);
+}
+
+function promptToChapter(text) {
+  window.location.href = `/chapters/new?prompt=${encodeURIComponent(text)}`;
+}
+
+function dayPromptToChapter(text) {
+  promptToChapter(text);
+}
+</script>
+{% endblock %}

@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Voice Profile — {{ character.name }}{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('characters.list_view') }}">Characters</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('characters.detail', character_id=character.id) }}">{{ character.name }}</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Voice Profile</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>🗣 {{ character.name }} — Voice Profile</h1>
+    <div class="subtitle">Define how this character speaks. The scanner will flag dialogue that breaks these rules.</div>
+  </div>
+  <div class="flex gap-2">
+    <a href="{{ url_for('voice.scan', character_id=character.id) }}" class="btn">🔍 Scan Dialogue</a>
+    <a href="{{ url_for('voice.index') }}" class="btn btn-ghost">← All Characters</a>
+  </div>
+</div>
+
+<form id="voiceForm" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <!-- Speech style selectors -->
+  <div class="card-title mb-3">Speech Style</div>
+  <div class="card-grid cols-3 mb-4">
+    <div class="form-row">
+      <label class="form-label">Verbosity</label>
+      <select name="speech_verbosity" class="form-select">
+        {% for key, v in verbosity_levels.items() %}
+        <option value="{{ key }}" {{ 'selected' if profile.speech_verbosity == key }}>{{ v.icon }} {{ v.label }} — {{ v.desc }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Formality</label>
+      <select name="formality" class="form-select">
+        {% for key, v in formality_levels.items() %}
+        <option value="{{ key }}" {{ 'selected' if profile.formality == key }}>{{ v.icon }} {{ v.label }} — {{ v.desc }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Typical sentence length</label>
+      <select name="typical_sentence_length" class="form-select">
+        {% for key, v in sentence_lengths.items() %}
+        <option value="{{ key }}" {{ 'selected' if profile.typical_sentence_length == key }}>{{ v.icon }} {{ v.label }} — {{ v.desc }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="form-row mb-4">
+    <label class="flex items-center gap-2 text-sm">
+      <input type="checkbox" name="uses_contractions" value="true" {{ 'checked' if profile.uses_contractions }}>
+      Uses contractions (don't, can't, won't) — uncheck if they speak formally
+    </label>
+  </div>
+
+  <!-- Vocabulary -->
+  <div class="card-title mb-3 mt-4">Vocabulary</div>
+  <div class="card-grid cols-2 mb-4">
+    <div class="form-row">
+      <label class="form-label">Favorite words (one per line)</label>
+      <textarea name="favorite_words" class="form-textarea" rows="4" placeholder="indeed&#10;nevertheless&#10;my friend">{{ profile.favorite_words | join('\n') }}</textarea>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Avoided words (one per line — flagged in scan)</label>
+      <textarea name="avoided_words" class="form-textarea" rows="4" placeholder="okay&#10;cool&#10;whatever">{{ profile.avoided_words | join('\n') }}</textarea>
+    </div>
+  </div>
+  <div class="form-row mb-4">
+    <label class="form-label">Catchphrases (signature phrases — counted in scan)</label>
+    <textarea name="catchphrases" class="form-textarea" rows="3" placeholder="By the old gods&#10;Mark my words">{{ profile.catchphrases | join('\n') }}</textarea>
+  </div>
+
+  <!-- Qualitative -->
+  <div class="card-title mb-3 mt-4">Qualitative Style</div>
+  <div class="form-row mb-3">
+    <label class="form-label">Speech quirks</label>
+    <textarea name="speech_quirks" class="form-textarea" rows="2" placeholder="Stutters on 's'. Drops 'g' from -ing endings. Always addresses people by full name.">{{ profile.speech_quirks }}</textarea>
+  </div>
+  <div class="card-grid cols-2 mb-3">
+    <div class="form-row">
+      <label class="form-label">Favorite topics (one per line)</label>
+      <textarea name="favorite_topics" class="form-textarea" rows="3" placeholder="old battles&#10;family history&#10;philosophy">{{ profile.favorite_topics | join('\n') }}</textarea>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Avoids topics (one per line)</label>
+      <textarea name="avoids_topics" class="form-textarea" rows="3" placeholder="their past&#10;politics&#10;religion">{{ profile.avoids_topics | join('\n') }}</textarea>
+    </div>
+  </div>
+  <div class="form-row mb-3">
+    <label class="form-label">Example dialogue (a representative sample)</label>
+    <textarea name="example_dialogue" class="form-textarea" rows="3" placeholder='"You ask too many questions, my friend. The answer, however, is simpler than you might imagine."'>{{ profile.example_dialogue }}</textarea>
+  </div>
+  <div class="form-row mb-4">
+    <label class="form-label">Notes</label>
+    <textarea name="notes" class="form-textarea" rows="2" placeholder="Any internal notes about how this character sounds…">{{ profile.notes }}</textarea>
+  </div>
+
+  <div class="flex justify-end gap-2">
+    <a href="{{ url_for('voice.index') }}" class="btn">Cancel</a>
+    <button type="submit" class="btn btn-primary">Save Profile</button>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById("voiceForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  // Convert textarea lists to JSON arrays
+  const fd = new FormData(e.target);
+  const payload = {};
+  for (const [k, v] of fd.entries()) {
+    if (["favorite_words", "avoided_words", "catchphrases", "favorite_topics", "avoids_topics"].includes(k)) {
+      if (!(k in payload)) payload[k] = [];
+      payload[k].push(...v.split("\n").map(s => s.trim()).filter(Boolean));
+    } else if (k === "uses_contractions") {
+      payload[k] = true;
+    } else {
+      payload[k] = v;
+    }
+  }
+  if (!("uses_contractions" in payload)) payload.uses_contractions = false;
+  const { data } = await asmFetch(`/voice/api/{{ character.id }}`, {
+    method: "POST",
+    body: payload,
+  });
+  if (data.ok) {
+    showToast("Voice profile saved!", "success");
+    setTimeout(() => location.reload(), 600);
+  } else {
+    showToast(data.error || "Failed", "error");
+  }
+});
+</script>
+{% endblock %}

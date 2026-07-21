@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}Timeline Conflict Detection{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('plans.timeline') }}">Timeline</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Conflict Detection</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>🕐 Timeline Conflict Detection</h1>
+    <div class="subtitle">Catch plot holes before your readers do. Scans all plan items with story dates for ordering issues, duplicates, character double-booking, and suspicious gaps.</div>
+  </div>
+  <div class="flex gap-2">
+    <a href="{{ url_for('plans.timeline') }}" class="btn btn-ghost">← Back to Timeline</a>
+    <button class="btn btn-primary" onclick="location.reload()">↻ Re-scan</button>
+  </div>
+</div>
+
+<!-- Summary cards -->
+<div class="card-grid cols-4 mb-6">
+  <div class="card">
+    <div class="card-subtitle">Total events</div>
+    <div style="font-size: 1.7rem; font-weight: 600">{{ result.total_events }}</div>
+  </div>
+  <div class="card">
+    <div class="card-subtitle">Parsed dates</div>
+    <div style="font-size: 1.7rem; font-weight: 600; color: var(--success)">{{ result.parsed_events }}</div>
+  </div>
+  <div class="card">
+    <div class="card-subtitle">Issues found</div>
+    <div style="font-size: 1.7rem; font-weight: 600; color: {{ 'var(--danger)' if result.issues else 'var(--success)' }}">{{ result.issues | length }}</div>
+  </div>
+  <div class="card">
+    <div class="card-subtitle">Suspicious gaps</div>
+    <div style="font-size: 1.7rem; font-weight: 600; color: var(--warning)">{{ result.gaps | length }}</div>
+  </div>
+</div>
+
+<!-- Track filter -->
+{% if result.tracks %}
+<form method="get" class="card mb-4" style="display: flex; gap: 0.75rem; align-items: center">
+  <span class="text-sm text-mute">Filter by track:</span>
+  <select name="track" class="form-select" style="width: auto" onchange="this.form.submit()">
+    <option value="all" {{ 'selected' if current_track == 'all' }}>All tracks</option>
+    {% for t in result.tracks %}
+    <option value="{{ t }}" {{ 'selected' if current_track == t }}>{{ t }}</option>
+    {% endfor %}
+  </select>
+</form>
+{% endif %}
+
+<!-- Unparseable dates warning -->
+{% if result.unparseable_dates > 0 %}
+<div class="card mb-6" style="background: var(--bg-elev-2); border-left: 3px solid var(--warning)">
+  <div class="text-sm">
+    <strong>⚠ {{ result.unparseable_dates }} unparseable date(s).</strong>
+    Some story dates couldn't be parsed. For best results use ISO format (YYYY-MM-DD),
+    "Month Day, Year" (e.g. "July 15, 2026"), or year-month (YYYY-MM).
+  </div>
+</div>
+{% endif %}
+
+<!-- Issues -->
+<div class="card mb-6">
+  <div class="card-title mb-3">⚠ Issues ({{ result.issues | length }})</div>
+  {% if result.issues %}
+  <div class="flex flex-col gap-2">
+    {% for issue in result.issues %}
+    <div class="card" style="padding: 0.9rem; border-left: 3px solid {{ 'var(--danger)' if issue.severity == 'high' else 'var(--warning)' if issue.severity == 'medium' else 'var(--text-mute)' }}">
+      <div class="flex items-center gap-2 flex-wrap mb-2">
+        <span class="badge" style="background: {{ 'var(--danger)' if issue.severity == 'high' else 'var(--warning)' if issue.severity == 'medium' else 'var(--text-mute)' }}; color: white">{{ issue.type | replace('_', ' ') | upper }}</span>
+        {% if issue.severity == 'high' %}<span class="badge" style="background: var(--danger); color: white">HIGH</span>{% endif %}
+      </div>
+      <p class="text-sm" style="line-height: 1.5">{{ issue.message }}</p>
+      {% if issue.events %}
+      <div class="flex gap-2 mt-2 flex-wrap">
+        {% for ev in issue.events %}
+        <a href="{{ url_for('plans.detail', plan_id=ev.plan_id) }}" class="btn btn-sm">{{ ev.title }}</a>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% if issue.plan_id %}
+      <a href="{{ url_for('plans.detail', plan_id=issue.plan_id) }}" class="btn btn-sm mt-2">Open plan →</a>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state" style="padding: 2rem; text-align: center">
+    <div class="text-3xl mb-2">✓</div>
+    <div class="text-sm">
+      {% if result.total_events == 0 %}
+      No plan items have story dates yet. Add story dates to your timeline events to enable conflict detection.
+      {% else %}
+      No timeline conflicts detected! Your story dates are consistent.
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Gaps -->
+{% if result.gaps %}
+<div class="card mb-6">
+  <div class="card-title mb-3">📏 Suspicious Gaps ({{ result.gaps | length }})</div>
+  <div class="flex flex-col gap-2">
+    {% for gap in result.gaps %}
+    <div class="card" style="padding: 0.75rem; border-left: 3px solid var(--warning)">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="badge" style="background: var(--warning); color: white">{{ gap.gap_days }} days</span>
+        <span class="text-sm">
+          <a href="{{ url_for('plans.detail', plan_id=gap.from_plan_id) }}">{{ gap.from_title }}</a>
+          <span class="text-mute">({{ gap.from_date }})</span>
+          →
+          <a href="{{ url_for('plans.detail', plan_id=gap.to_plan_id) }}">{{ gap.to_title }}</a>
+          <span class="text-mute">({{ gap.to_date }})</span>
+        </span>
+      </div>
+      <p class="text-xs text-mute">{{ gap.message }}</p>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Events table (chronological) -->
+{% if result.events %}
+<div class="card">
+  <div class="card-title mb-3">📅 All Timeline Events ({{ result.total_events }})</div>
+  <div class="table-wrap" style="overflow-x: auto; max-height: 500px; overflow-y: auto">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Sort #</th>
+          <th>Story Date</th>
+          <th>Title</th>
+          <th>Track</th>
+          <th>Event Type</th>
+          <th>Parsed?</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ev in result.events %}
+        <tr>
+          <td>{{ ev.sort_order }}</td>
+          <td><code>{{ ev.story_date_raw }}</code></td>
+          <td><a href="{{ url_for('plans.detail', plan_id=ev.plan_id) }}">{{ ev.title }}</a></td>
+          <td>{{ ev.track or '—' }}</td>
+          <td>{{ ev.event_type or '—' }}</td>
+          <td>
+            {% if ev.story_date_parsed %}<span style="color: var(--success)">✓ {{ ev.story_date_parsed }}</span>
+            {% else %}<span style="color: var(--danger)">✗</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

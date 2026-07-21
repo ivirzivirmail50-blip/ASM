@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Manuscript Diff{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Manuscript Diff</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>📖 Manuscript Snapshot Diff</h1>
+    <div class="subtitle">Compare your manuscript state between two points in time using version snapshots.</div>
+  </div>
+</div>
+
+<!-- Date picker -->
+<div class="card mb-6">
+  <div class="card-title mb-3">Select Two Dates to Compare</div>
+  {% if dates %}
+  <div class="card-grid cols-2 mb-3">
+    <div class="form-row">
+      <label class="form-label">From (earlier date)</label>
+      <select id="fromDate" class="form-select">
+        {% for d in dates %}
+        <option value="{{ d.datetime }}">{{ d.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-row">
+      <label class="form-label">To (later date)</label>
+      <select id="toDate" class="form-select">
+        {% for d in dates|reverse %}
+        <option value="{{ d.datetime }}" {{ 'selected' if loop.first }}>{{ d.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="flex gap-2">
+    <button class="btn btn-primary" onclick="computeDiff()">🔍 Compare</button>
+    <button class="btn" onclick="downloadDiff()">⬇ Download HTML</button>
+  </div>
+  {% else %}
+  <div class="empty-state" style="padding: 2rem; text-align: center">
+    <div class="text-mute text-sm">No version snapshots available yet. Edit some chapters to create snapshots, then come back to compare.</div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Results -->
+<div id="resultsBox" style="display: none">
+  <div class="card mb-4" id="summaryBox"></div>
+  <div id="detailsBox"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function computeDiff() {
+  const fromVal = document.getElementById("fromDate").value;
+  const toVal = document.getElementById("toDate").value;
+  if (!fromVal || !toVal) { showToast("Select both dates", "warning"); return; }
+  const { data } = await asmFetch(`/snapshot-diff/api/diff?from=${encodeURIComponent(fromVal)}&to=${encodeURIComponent(toVal)}`, { method: "GET" });
+  if (!data.ok) { showToast(data.error || "Failed", "error"); return; }
+  renderDiff(data.diff);
+}
+
+function renderDiff(diff) {
+  document.getElementById("resultsBox").style.display = "block";
+  const delta = diff.net_word_change;
+  const deltaClass = delta >= 0 ? "var(--success)" : "var(--danger)";
+  const summary = `
+    <div class="card-title">Summary</div>
+    <div class="card-grid cols-4 mt-2">
+      <div><strong>From:</strong> ${diff.from_date.slice(0, 16)}</div>
+      <div><strong>To:</strong> ${diff.to_date.slice(0, 16)}</div>
+      <div><strong>Chapters:</strong> ${diff.from_chapter_count} → ${diff.to_chapter_count}</div>
+      <div><strong>Net words:</strong> <span style="color: ${deltaClass}; font-weight: 600">${delta >= 0 ? '+' : ''}${delta.toLocaleString()}</span></div>
+    </div>
+    <div class="flex gap-2 mt-3">
+      <span class="badge" style="background: var(--success)22; color: var(--success)">+ ${diff.added_count} added</span>
+      <span class="badge" style="background: var(--danger)22; color: var(--danger)">− ${diff.removed_count} removed</span>
+      <span class="badge" style="background: var(--warning)22; color: var(--warning)">~ ${diff.modified_count} modified</span>
+    </div>
+  `;
+  document.getElementById("summaryBox").innerHTML = summary;
+
+  let details = "";
+  if (diff.added.length > 0) {
+    details += `<div class="card mb-4"><div class="card-title mb-2" style="color: var(--success)">+ Added Chapters (${diff.added.length})</div>`;
+    diff.added.forEach(ch => {
+      details += `<div class="card" style="padding: 0.75rem; border-left: 3px solid var(--success)"><strong>${escapeHtml(ch.title)}</strong> — ${ch.word_count} words</div>`;
+    });
+    details += "</div>";
+  }
+  if (diff.removed.length > 0) {
+    details += `<div class="card mb-4"><div class="card-title mb-2" style="color: var(--danger)">− Removed Chapters (${diff.removed.length})</div>`;
+    diff.removed.forEach(ch => {
+      details += `<div class="card" style="padding: 0.75rem; border-left: 3px solid var(--danger)"><strong>${escapeHtml(ch.title)}</strong> — was ${ch.word_count} words</div>`;
+    });
+    details += "</div>";
+  }
+  if (diff.modified.length > 0) {
+    details += `<div class="card"><div class="card-title mb-2" style="color: var(--warning)">~ Modified Chapters (${diff.modified.length})</div>`;
+    diff.modified.forEach(ch => {
+      const d = ch.word_count_delta;
+      const dClass = d >= 0 ? "var(--success)" : "var(--danger)";
+      details += `<div class="card" style="padding: 0.75rem; border-left: 3px solid var(--warning)">
+        <div class="flex items-center gap-2 mb-1">
+          <strong>${escapeHtml(ch.title)}</strong>
+          <span style="color: ${dClass}; font-weight: 600">${d >= 0 ? '+' : ''}${d} words</span>
+          <span class="text-xs text-mute">v${ch.old_version} → v${ch.new_version}</span>
+        </div>`;
+      if (ch.diff_preview.line_number > 0) {
+        details += `<div style="background: var(--bg-elev-2); padding: 0.5rem; border-radius: 4px; font-family: monospace; font-size: 0.85rem">
+          <div style="color: var(--danger)">- L${ch.diff_preview.line_number}: ${escapeHtml(ch.diff_preview.old)}</div>
+          <div style="color: var(--success)">+ L${ch.diff_preview.line_number}: ${escapeHtml(ch.diff_preview.new)}</div>
+        </div>`;
+      }
+      details += "</div>";
+    });
+    details += "</div>";
+  }
+  if (!diff.added.length && !diff.removed.length && !diff.modified.length) {
+    details = `<div class="card empty-state" style="padding: 2rem; text-align: center"><div class="text-mute">No changes between these dates.</div></div>`;
+  }
+  document.getElementById("detailsBox").innerHTML = details;
+}
+
+function downloadDiff() {
+  const fromVal = document.getElementById("fromDate").value;
+  const toVal = document.getElementById("toDate").value;
+  if (!fromVal || !toVal) { showToast("Select both dates", "warning"); return; }
+  window.location.href = `/snapshot-diff/download?from=${encodeURIComponent(fromVal)}&to=${encodeURIComponent(toVal)}`;
+}
+</script>
+{% endblock %}

@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}Focus Mode{% endblock %}
+{% block content %}
+<div style="position: fixed; inset: 0; z-index: 9999; background: var(--bg); display: flex; flex-direction: column;">
+
+<!-- Top bar -->
+<div style="padding: 0.5rem 1rem; display: flex; align-items: center; gap: 1rem; border-bottom: 1px solid var(--border); background: var(--bg-elev-1);">
+  <a href="/" class="btn btn-sm btn-ghost">← Exit</a>
+  <select id="chapterSelect" class="form-select" style="width: auto; max-width: 300px;">
+    <option value="">— Select Chapter —</option>
+    {% for c in chapters %}
+    <option value="{{ c.id }}">{{ c.title }}</option>
+    {% endfor %}
+  </select>
+  <div id="timerDisplay" style="font-family: monospace; font-size: 1.2rem; font-weight: 600; color: var(--accent-hover);">00:00</div>
+  <button id="startBtn" class="btn btn-sm btn-primary">▶ Start</button>
+  <button id="endBtn" class="btn btn-sm btn-ghost" style="display:none">⏹ End</button>
+  <div class="ml-auto flex items-center gap-2">
+    <label class="text-xs text-mute">Bg:</label>
+    <select id="bgColor" class="form-select" style="width: auto; font-size: 0.8rem;">
+      <option value="var(--bg)">Default</option>
+      <option value="#1a1a2e">Midnight</option>
+      <option value="#0d1117">GitHub Dark</option>
+      <option value="#fdf6e3">Sepia</option>
+      <option value="#ffffff">White</option>
+    </select>
+    <label class="text-xs text-mute">Width:</label>
+    <input type="range" id="widthSlider" min="500" max="1200" value="720" style="width: 80px;">
+    <label class="text-xs text-mute">Size:</label>
+    <input type="range" id="fontSlider" min="14" max="28" value="18" style="width: 80px;">
+  </div>
+</div>
+
+<!-- Editor area -->
+<div style="flex: 1; overflow-y: auto; display: flex; justify-content: center; padding: 2rem;" id="editorArea">
+  <textarea id="focusEditor" style="width: 720px; max-width: 100%; height: 100%; border: none; outline: none; resize: none; background: transparent; color: var(--text); font-family: Georgia, serif; font-size: 18px; line-height: 1.8; padding: 2rem;"
+    placeholder="Select a chapter to start writing..."></textarea>
+</div>
+
+<!-- Status bar -->
+<div style="padding: 0.3rem 1rem; border-top: 1px solid var(--border); display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-mute);">
+  <span id="wordCount">0 words</span>
+  <span id="sessionInfo">No active session</span>
+  <span id="autoSaveStatus">—</span>
+</div>
+
+</div>
+
+<script>
+(function() {
+  const editor = document.getElementById("focusEditor");
+  const chapterSelect = document.getElementById("chapterSelect");
+  const startBtn = document.getElementById("startBtn");
+  const endBtn = document.getElementById("endBtn");
+  const timerDisplay = document.getElementById("timerDisplay");
+  const wordCountEl = document.getElementById("wordCount");
+  const sessionInfo = document.getElementById("sessionInfo");
+  const autoSaveStatus = document.getElementById("autoSaveStatus");
+  const bgColor = document.getElementById("bgColor");
+  const widthSlider = document.getElementById("widthSlider");
+  const fontSlider = document.getElementById("fontSlider");
+  const editorArea = document.getElementById("editorArea");
+
+  let currentChapterId = null;
+  let timerInterval = null;
+  let timerStart = null;
+  let saveTimeout = null;
+  let activeSessionId = null;
+
+  // Settings
+  bgColor.addEventListener("change", () => {
+    document.querySelector("[style*='position: fixed']").style.background = bgColor.value;
+    editorArea.style.background = bgColor.value;
+  });
+  widthSlider.addEventListener("input", () => { editor.style.width = widthSlider.value + "px"; });
+  fontSlider.addEventListener("input", () => { editor.style.fontSize = fontSlider.value + "px"; });
+
+  // Load chapter
+  chapterSelect.addEventListener("change", async () => {
+    const id = chapterSelect.value;
+    if (!id) { editor.value = ""; editor.disabled = true; return; }
+    currentChapterId = id;
+    editor.disabled = false;
+    const r = await fetch(`/chapters/${id}/autosave`, { method: "GET" });
+    // Fetch chapter content via API
+    const { data } = await asmFetch(`/chapters/${id}`, { method: "GET" });
+    // Actually we need to get the content - use the detail page or an API
+    // For now, fetch the chapter detail page and extract content
+    const res = await fetch(`/chapters/${id}`);
+    const html = await res.text();
+    // Extract content from the page (it's in a textarea or div)
+    const match = html.match(/<textarea[^>]*id="[^"]*content[^"]*"[^>]*>([\s\S]*?)<\/textarea>/i);
+    editor.value = match ? match[1].replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&amp;/g,"&").replace(/&quot;/g,'"').replace(/&#39;/g,"'") : "";
+    updateWordCount();
+  });
+
+  // Word count
+  function updateWordCount() {
+    const words = editor.value.trim().split(/\s+/).filter(Boolean).length;
+    wordCountEl.textContent = words + " words";
+  }
+  editor.addEventListener("input", () => {
+    updateWordCount();
+    autoSaveStatus.textContent = "Editing...";
+    clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(() => autoSaveChapter(), 3000);
+  });
+
+  // Auto-save
+  async function autoSaveChapter() {
+    if (!currentChapterId) return;
+    autoSaveStatus.textContent = "Saving...";
+    const fd = new FormData();
+    fd.append("title", chapterSelect.options[chapterSelect.selectedIndex].text);
+    fd.append("content", editor.value);
+    fd.append("status", "draft");
+    const res = await fetch(`/chapters/${currentChapterId}/edit`, {
+      method: "POST",
+      headers: { "X-CSRFToken": getCsrfToken() },
+      body: fd
+    });
+    const data = await res.json();
+    if (data.ok) autoSaveStatus.textContent = "Saved ✓";
+    else autoSaveStatus.textContent = "Save failed!";
+  }
+
+  // Timer
+  startBtn.addEventListener("click", async () => {
+    const { data } = await asmFetch("/focus/api/session/start", {
+      method: "POST",
+      body: { session_type: "pomodoro", target_minutes: 25, chapter_id: currentChapterId }
+    });
+    if (data.ok) {
+      activeSessionId = data.id;
+      timerStart = Date.now();
+      startBtn.style.display = "none";
+      endBtn.style.display = "inline-block";
+      sessionInfo.textContent = "Session active (25min)";
+      timerInterval = setInterval(updateTimer, 1000);
+    }
+  });
+
+  endBtn.addEventListener("click", async () => {
+    const { data } = await asmFetch("/focus/api/session/end", { method: "POST", body: { status: "completed" } });
+    clearInterval(timerInterval);
+    startBtn.style.display = "inline-block";
+    endBtn.style.display = "none";
+    sessionInfo.textContent = data.ok ? `Session ended: ${data.words_written} words` : "No active session";
+    timerDisplay.textContent = "00:00";
+  });
+
+  function updateTimer() {
+    const elapsed = Math.floor((Date.now() - timerStart) / 1000);
+    const min = Math.floor(elapsed / 60);
+    const sec = elapsed % 60;
+    timerDisplay.textContent = `${String(min).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+    if (min >= 25) {
+      timerDisplay.style.color = "var(--success)";
+      sessionInfo.textContent = "🎉 25 min complete!";
+    }
+  }
+
+  editor.disabled = true;
+})();
+</script>
+{% endblock %}

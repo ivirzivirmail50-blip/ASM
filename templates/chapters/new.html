@@ -26,8 +26,8 @@
   </div>
   <div class="form-row">
     <label class="form-label">Synopsis</label>
-    <textarea name="synopsis" class="form-textarea" rows="2"
-              placeholder="One-paragraph summary of what happens…"></textarea>
+    <textarea name="synopsis" id="chapterSynopsis" class="form-textarea" rows="2"
+              placeholder="One-paragraph summary of what happens…">{{ prefill_synopsis or '' }}</textarea>
   </div>
   <div class="card-grid cols-3 mb-4">
     <div class="form-row">
@@ -62,7 +62,7 @@
   <div class="form-row">
     <label class="form-label">Content</label>
     <textarea name="content" id="chapterContent" class="form-textarea"
-              style="min-height: 400px"></textarea>
+              style="min-height: 400px">{{ prefill_content or '' }}</textarea>
   </div>
   <div class="flex justify-end gap-2">
     <a href="{{ url_for('chapters.list_view') }}" class="btn">Cancel</a>

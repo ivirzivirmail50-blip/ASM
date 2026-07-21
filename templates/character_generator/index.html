@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Character Generator{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>🎲 Character Generator</h1>
+  <div class="subtitle">Generate random characters with backstories, or use AI for more detailed creation.</div>
+</div>
+<div class="card mb-4">
+  <div class="flex gap-2 items-center flex-wrap">
+    <select id="setting" class="form-select" style="width:auto">
+      <option value="fantasy">Fantasy</option>
+      <option value="modern">Modern</option>
+      <option value="scifi">Sci-Fi</option>
+    </select>
+    <label class="text-sm flex items-center gap-1">
+      <input type="checkbox" id="useAI" {% if not settings or not settings.get('ai.enabled') %}disabled{% endif %}>
+      Use AI (if enabled)
+    </label>
+    <button class="btn btn-primary" onclick="generate()">🎲 Generate</button>
+  </div>
+</div>
+<div id="resultCard" style="display:none">
+  <div class="card mb-4">
+    <div class="flex items-center gap-2 mb-3">
+      <h2 id="charName" style="margin:0"></h2>
+      <span id="charRole" class="badge"></span>
+    </div>
+    <div class="card-grid cols-2" id="charDetails"></div>
+  </div>
+  <button class="btn btn-primary" onclick="saveCharacter()">💾 Save Character</button>
+</div>
+<script>
+async function generate() {
+  const setting = document.getElementById("setting").value;
+  const useAI = document.getElementById("useAI").checked;
+  const { data } = await asmFetch("/character-generator/api/generate", { method: "POST", body: { setting, use_ai: useAI } });
+  if (!data.ok) { showToast(data.error || "Failed", "error"); return; }
+  const c = data.character;
+  document.getElementById("resultCard").style.display = "block";
+  document.getElementById("charName").textContent = c.name || "AI Generated";
+  document.getElementById("charRole").textContent = c.role || "";
+  const details = document.getElementById("charDetails");
+  if (c.ai_generated) {
+    details.innerHTML = `<div style="grid-column: span 2; white-space: pre-wrap; line-height: 1.7">${escapeHtml(c.description)}</div>`;
+  } else {
+    details.innerHTML = [
+      ["Age", c.age], ["Physical", c.physical], ["Personality", c.personality],
+      ["Background", c.background], ["Motivation", c.motivation], ["Fear", c.fear], ["Quirk", c.quirk]
+    ].map(([k,v]) => `<div><div class="text-xs text-mute uppercase">${k}</div><div class="text-sm mt-1">${escapeHtml(v||"")}</div></div>`).join("");
+  }
+  window._lastChar = c;
+}
+
+async function saveCharacter() {
+  const c = window._lastChar;
+  if (!c) return;
+  const payload = { name: c.name, role: c.role || "supporting", age: c.age || "", physical: c.physical || "", personality: c.personality || "", background: c.background || "" };
+  const { data } = await asmFetch("/character-generator/api/save", { method: "POST", body: payload });
+  if (data.ok) { showToast("Character saved!", "success"); setTimeout(()=>location.href="/characters/"+data.id, 800); }
+  else { showToast(data.error||"Failed", "error"); }
+}
+</script>
+{% endblock %}

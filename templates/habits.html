@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}Writing Habits{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Writing Habits</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>📊 Writing Habit Insights</h1>
+    <div class="subtitle">Discover when you write best. Analyzes {{ insights.days_analyzed }} days of activity.</div>
+  </div>
+  <div class="flex gap-2">
+    <a href="?days=30" class="btn btn-sm {{ 'btn-primary' if days == 30 else 'btn-ghost' }}">30d</a>
+    <a href="?days=90" class="btn btn-sm {{ 'btn-primary' if days == 90 else 'btn-ghost' }}">90d</a>
+    <a href="?days=365" class="btn btn-sm {{ 'btn-primary' if days == 365 else 'btn-ghost' }}">1y</a>
+  </div>
+</div>
+
+{% if insights.total_entries == 0 %}
+<div class="card empty-state" style="padding: 3rem; text-align: center">
+  <div class="text-3xl mb-2">📊</div>
+  <div class="text-mute text-sm">No writing activity in the selected period. Start writing to see your habits!</div>
+</div>
+{% else %}
+
+<!-- Summary cards -->
+<div class="card-grid cols-5 mb-6">
+  <div class="card text-center">
+    <div class="card-subtitle">Total entries</div>
+    <div style="font-size: 1.5rem; font-weight: 600">{{ insights.total_entries }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Total words</div>
+    <div style="font-size: 1.5rem; font-weight: 600; color: var(--accent-hover)">{{ "{:,}".format(insights.total_words) }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Writing days</div>
+    <div style="font-size: 1.5rem; font-weight: 600">{{ insights.frequency.writing_days }}/{{ insights.frequency.total_days }}</div>
+    <div class="text-xs text-mute">{{ insights.frequency.pct_writing_days }}%</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Longest streak</div>
+    <div style="font-size: 1.5rem; font-weight: 600; color: var(--warning)">{{ insights.longest_streak }}d 🔥</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Current streak</div>
+    <div style="font-size: 1.5rem; font-weight: 600; color: var(--success)">{{ insights.current_streak }}d</div>
+  </div>
+</div>
+
+<!-- Best day/hour -->
+<div class="card-grid cols-2 mb-6">
+  {% if insights.best_day_of_week %}
+  <div class="card" style="border-left: 3px solid var(--accent)">
+    <div class="card-subtitle">🏆 Best Day of Week</div>
+    <div style="font-size: 1.8rem; font-weight: 700; color: var(--accent-hover)">{{ insights.best_day_of_week.name }}</div>
+    <div class="text-sm text-mute">{{ "{:,}".format(insights.best_day_of_week.words) }} words total</div>
+  </div>
+  {% endif %}
+  {% if insights.best_hour %}
+  <div class="card" style="border-left: 3px solid var(--success)">
+    <div class="card-subtitle">⏰ Best Hour of Day</div>
+    <div style="font-size: 1.8rem; font-weight: 700; color: var(--success)">{{ insights.best_hour.label }}</div>
+    <div class="text-sm text-mute">{{ "{:,}".format(insights.best_hour.words) }} words total</div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Day of week ranking -->
+<div class="card mb-6">
+  <div class="card-title mb-3">📅 Productivity by Day of Week</div>
+  <div class="flex flex-col gap-2">
+    {% for d in insights.day_of_week_stats %}
+    <div class="flex items-center gap-2">
+      <span style="min-width: 40px; font-weight: 600">{{ d.abbr }}</span>
+      <div class="progress" style="height: 10px; flex: 1">
+        {% set pct = (d.words / insights.heatmap_max * 100) | int if insights.heatmap_max else 0 %}
+        <div class="progress-bar accent" style="width: {{ pct }}%"></div>
+      </div>
+      <span style="min-width: 80px; text-align: right; font-size: 0.85rem">
+        {{ "{:,}".format(d.words) }}w · {{ d.sessions }} session{{ 's' if d.sessions != 1 else '' }}
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Hour ranking (top 8) -->
+<div class="card mb-6">
+  <div class="card-title mb-3">⏰ Productivity by Hour (top 8)</div>
+  <div class="flex flex-col gap-2">
+    {% for h in insights.hour_stats[:8] %}
+    <div class="flex items-center gap-2">
+      <span style="min-width: 60px; font-weight: 600; font-family: monospace">{{ h.hour_label }}</span>
+      <div class="progress" style="height: 10px; flex: 1">
+        {% set pct = (h.words / insights.heatmap_max * 100) | int if insights.heatmap_max else 0 %}
+        <div class="progress-bar warm" style="width: {{ pct }}%"></div>
+      </div>
+      <span style="min-width: 80px; text-align: right; font-size: 0.85rem">
+        {{ "{:,}".format(h.words) }}w · {{ h.sessions }}×
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Heatmap -->
+<div class="card">
+  <div class="card-title mb-3">🔥 Day × Hour Heatmap</div>
+  <div style="overflow-x: auto">
+    <table style="border-collapse: collapse; font-size: 0.7rem">
+      <thead>
+        <tr>
+          <th style="padding: 2px 4px"></th>
+          {% for h in range(24) %}
+          <th style="padding: 2px 2px; color: var(--text-mute); text-align: center">{{ h }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for dow in range(7) %}
+        <tr>
+          <td style="padding: 2px 6px; font-weight: 600; color: var(--text-mute); font-size: 0.75rem">{{ ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][dow] }}</td>
+          {% for h in range(24) %}
+          {% set val = insights.heatmap[dow][h] %}
+          {% set intensity = (val / insights.heatmap_max) if insights.heatmap_max else 0 %}
+          <td style="padding: 1px; width: 28px; height: 20px;
+                     background: {% if val == 0 %}var(--bg-elev-2)
+                     {% elif intensity < 0.25 %}rgba(99, 102, 241, 0.2)
+                     {% elif intensity < 0.5 %}rgba(99, 102, 241, 0.4)
+                     {% elif intensity < 0.75 %}rgba(99, 102, 241, 0.7)
+                     {% else %}rgba(99, 102, 241, 0.9){% endif %}
+                     ; text-align: center; color: {{ 'white' if intensity > 0.5 else 'var(--text-mute)' }}"
+              title="{{ ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][dow] }} {{ '%02d' | format(h) }}:00 — {{ val }} words">
+            {% if val > 0 %}{{ val }}{% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endif %}
+{% endblock %}

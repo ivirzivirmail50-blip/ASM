@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+{% block title %}Inspiration Hub{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Inspiration Hub</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>✨ Inspiration Hub</h1>
+    <div class="subtitle">Writing prompts, scenario generator, and daily spark — all offline, no AI needed.</div>
+  </div>
+  <div class="actions">
+    <button class="btn" onclick="rollScenario()">🎲 Random Scenario</button>
+    <button class="btn" onclick="rollWhatIf()">❓ Random What-If</button>
+    <button class="btn btn-primary" onclick="rollRandom()">🔀 Random Prompt</button>
+  </div>
+</div>
+
+<!-- Daily prompt -->
+<div class="card mb-6" style="background: linear-gradient(135deg, var(--bg-elev-2), var(--bg-elev-3)); border: 1px solid var(--accent)">
+  <div class="flex items-center justify-between mb-3">
+    <div>
+      <div class="text-xs text-mute uppercase tracking-wide">Prompt of the Day · {{ daily.date }}</div>
+      <div class="text-lg font-semibold mt-1">{{ daily.icon }} {{ daily.category_label }}</div>
+    </div>
+    <div class="flex gap-2">
+      <button class="btn btn-sm" onclick="savePrompt('{{ daily.category }}', {{ daily.text|tojson }})">📌 Save</button>
+      <button class="btn btn-sm btn-primary" onclick="convertToChapter({{ daily.text|tojson }})">→ New Chapter</button>
+    </div>
+  </div>
+  <p class="text-base" style="line-height: 1.6; font-size: 1.05rem">{{ daily.text }}</p>
+</div>
+
+<!-- Two columns: categories + generator -->
+<div class="grid grid-cols-2 gap-6 mb-6" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem">
+  <!-- Categories -->
+  <div class="card">
+    <div class="card-title mb-3">📚 Prompt Categories</div>
+    <div class="flex flex-col gap-2">
+      {% for c in categories %}
+      <div class="card" style="padding: 0.75rem; cursor: pointer; display: flex; align-items: center; justify-content: space-between"
+           onclick="loadCategory('{{ c.key }}')">
+        <div>
+          <span class="text-lg mr-2">{{ c.icon }}</span>
+          <span style="font-weight: 600">{{ c.label }}</span>
+          <div class="text-xs text-mute mt-0.5">{{ c.description }}</div>
+        </div>
+        <span class="badge">{{ c.count }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Generator -->
+  <div class="card">
+    <div class="card-title mb-3">🎲 Story Generator</div>
+    <p class="text-sm text-mute mb-3">Click the button below to roll a fresh five-part story premise.</p>
+    <div id="scenarioBox" class="card" style="padding: 1rem; background: var(--bg-elev-2); border-style: dashed; min-height: 200px">
+      <div class="text-mute text-sm" style="text-align: center; padding-top: 3rem">
+        Click "Random Scenario" above to generate a story premise.
+      </div>
+    </div>
+    <div class="flex gap-2 mt-3" id="scenarioActions" style="display: none">
+      <button class="btn btn-sm" onclick="saveScenario()">📌 Save Scenario</button>
+      <button class="btn btn-sm btn-primary" onclick="convertScenarioToChapter()">→ New Chapter from Scenario</button>
+      <button class="btn btn-sm btn-ghost" onclick="rollScenario()">🎲 Roll Again</button>
+    </div>
+  </div>
+</div>
+
+<!-- Category prompt viewer (hidden by default, populated by JS) -->
+<div class="card mb-6" id="categoryViewer" style="display: none">
+  <div class="flex items-center justify-between mb-3">
+    <div class="card-title" id="catViewerTitle">Prompts</div>
+    <button class="btn btn-sm btn-ghost" onclick="document.getElementById('categoryViewer').style.display='none'">Close</button>
+  </div>
+  <div id="catViewerBody" class="flex flex-col gap-2"></div>
+</div>
+
+<!-- Saved inspirations -->
+<div class="card">
+  <div class="flex items-center justify-between mb-3">
+    <div class="card-title">📌 Saved Inspirations <span class="badge">{{ saved|length }}</span></div>
+    <div class="flex gap-2">
+      <select id="savedFilter" class="form-input" style="width: auto" onchange="filterSaved()">
+        <option value="">All kinds</option>
+        <option value="prompt">Prompts</option>
+        <option value="scenario">Scenarios</option>
+        <option value="whatif">What-Ifs</option>
+      </select>
+      <select id="pinnedFilter" class="form-input" style="width: auto" onchange="filterSaved()">
+        <option value="">All</option>
+        <option value="pinned">Pinned only</option>
+      </select>
+    </div>
+  </div>
+  {% if saved %}
+  <div id="savedList" class="flex flex-col gap-2">
+    {% for s in saved %}
+    <div class="card" data-kind="{{ s.kind }}" data-pinned="{{ '1' if s.pinned else '0' }}"
+         style="padding: 0.9rem; display: flex; gap: 0.75rem; align-items: flex-start">
+      <div class="flex-1">
+        <div class="flex items-center gap-2">
+          {% if s.pinned %}<span title="Pinned">📌</span>{% endif %}
+          {% if s.used %}<span title="Used" class="text-mute">✓</span>{% endif %}
+          <span class="badge">{{ s.kind }}</span>
+          <span class="badge">{{ s.category }}</span>
+          {% if s.title %}<span style="font-weight: 600">{{ s.title }}</span>{% endif %}
+        </div>
+        <p class="mt-1 text-sm" style="line-height: 1.5">{{ s.body }}</p>
+        <div class="text-xs text-mute mt-1">{{ s.created_at[:10] if s.created_at else '' }}</div>
+      </div>
+      <div class="flex flex-col gap-1">
+        <button class="btn btn-sm" onclick="togglePin('{{ s.id }}')">{{ 'Unpin' if s.pinned else 'Pin' }}</button>
+        <button class="btn btn-sm" onclick="markUsed('{{ s.id }}')">Mark Used</button>
+        <button class="btn btn-sm btn-primary" onclick="convertSavedToChapter({{ s.body|tojson }})">→ Chapter</button>
+        <button class="btn btn-sm btn-ghost text-danger" onclick="deleteSaved('{{ s.id }}')">×</button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state" style="padding: 2rem; text-align: center">
+    <div class="text-mute text-sm">
+      No saved inspirations yet. Save prompts or scenarios you want to revisit later.
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let _scenario = null;
+
+async function rollRandom() {
+  const { data } = await asmFetch("/inspiration/api/random", { method: "GET" });
+  if (data.ok) showPromptCard(data.prompt);
+}
+
+async function rollWhatIf() {
+  const { data } = await asmFetch("/inspiration/api/whatif", { method: "GET" });
+  if (data.ok) showPromptCard(data.prompt);
+}
+
+function showPromptCard(prompt) {
+  const box = document.getElementById("scenarioBox");
+  box.style.borderStyle = "solid";
+  box.innerHTML = `
+    <div class="flex items-center justify-between mb-2">
+      <span class="badge">${prompt.icon} ${prompt.category_label}</span>
+      <span class="text-xs text-mute">Prompt</span>
+    </div>
+    <p style="line-height: 1.6; font-size: 1rem">${escapeHtml(prompt.text)}</p>
+  `;
+  document.getElementById("scenarioActions").style.display = "flex";
+  _scenario = { kind: "prompt", category: prompt.category, body: prompt.text, meta: prompt };
+}
+
+async function rollScenario() {
+  const { data } = await asmFetch("/inspiration/api/scenario", { method: "GET" });
+  if (!data.ok) return;
+  const s = data.scenario;
+  _scenario = { kind: "scenario", category: "combo", body: s.prose, meta: s.parts };
+  const box = document.getElementById("scenarioBox");
+  box.style.borderStyle = "solid";
+  box.innerHTML = `
+    <div class="text-xs text-mute uppercase tracking-wide mb-2">Five-Part Premise</div>
+    <p style="line-height: 1.7; font-size: 1rem">${escapeHtml(s.prose)}</p>
+    <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+      <div><span class="text-mute">Protagonist:</span> ${escapeHtml(s.parts.protagonist)}</div>
+      <div><span class="text-mute">Setting:</span> ${escapeHtml(s.parts.setting)}</div>
+      <div><span class="text-mute">Goal:</span> ${escapeHtml(s.parts.goal)}</div>
+      <div><span class="text-mute">Obstacle:</span> ${escapeHtml(s.parts.obstacle)}</div>
+      <div class="col-span-2"><span class="text-mute">Twist:</span> ${escapeHtml(s.parts.twist)}</div>
+    </div>
+  `;
+  document.getElementById("scenarioActions").style.display = "flex";
+}
+
+async function loadCategory(cat) {
+  const { data } = await asmFetch(`/inspiration/api/prompts/${cat}`, { method: "GET" });
+  if (!data.ok) return;
+  const viewer = document.getElementById("categoryViewer");
+  const title = document.getElementById("catViewerTitle");
+  const body = document.getElementById("catViewerBody");
+  title.textContent = `Prompts: ${cat}`;
+  body.innerHTML = data.prompts.map((p, i) => `
+    <div class="card" style="padding: 0.75rem; display: flex; gap: 0.5rem; align-items: flex-start">
+      <span class="text-mute text-sm" style="min-width: 24px">${i+1}.</span>
+      <p class="flex-1 text-sm" style="line-height: 1.5">${escapeHtml(p)}</p>
+      <div class="flex flex-col gap-1">
+        <button class="btn btn-sm" onclick='savePrompt("${cat}", ${JSON.stringify(p).replace(/'/g, "&#39;")})'>📌</button>
+        <button class="btn btn-sm btn-primary" onclick='convertToChapter(${JSON.stringify(p).replace(/'/g, "&#39;")})'>→</button>
+      </div>
+    </div>
+  `).join("");
+  viewer.style.display = "block";
+  viewer.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function savePrompt(category, text) {
+  const { data } = await asmFetch("/inspiration/api/save", {
+    method: "POST",
+    body: { kind: "prompt", category, body: text }
+  });
+  if (data.ok) { showToast("Saved!", "success"); setTimeout(() => location.reload(), 600); }
+}
+
+async function saveScenario() {
+  if (!_scenario) return;
+  const { data } = await asmFetch("/inspiration/api/save", {
+    method: "POST",
+    body: _scenario
+  });
+  if (data.ok) { showToast("Scenario saved!", "success"); setTimeout(() => location.reload(), 600); }
+}
+
+function convertToChapter(text) {
+  window.location.href = `/chapters/new?prompt=${encodeURIComponent(text)}`;
+}
+
+function convertScenarioToChapter() {
+  if (!_scenario) return;
+  convertToChapter(_scenario.body);
+}
+
+function convertSavedToChapter(text) {
+  convertToChapter(text);
+}
+
+async function togglePin(id) {
+  const { data } = await asmFetch(`/inspiration/api/${id}/pin`, { method: "POST" });
+  if (data.ok) { showToast(data.pinned ? "Pinned" : "Unpinned", "success"); setTimeout(() => location.reload(), 600); }
+}
+
+async function markUsed(id) {
+  const { data } = await asmFetch(`/inspiration/api/${id}/used`, { method: "POST" });
+  if (data.ok) { showToast("Marked as used", "success"); setTimeout(() => location.reload(), 600); }
+}
+
+async function deleteSaved(id) {
+  const ok = await confirmDialog("Delete this saved inspiration?", { danger: true, okLabel: "Delete" });
+  if (!ok) return;
+  const { data } = await asmFetch(`/inspiration/api/${id}/delete`, { method: "POST" });
+  if (data.ok) { showToast("Deleted", "success"); setTimeout(() => location.reload(), 600); }
+}
+
+function filterSaved() {
+  const kind = document.getElementById("savedFilter").value;
+  const pinnedOnly = document.getElementById("pinnedFilter").value === "pinned";
+  document.querySelectorAll("#savedList > .card").forEach(el => {
+    const matchKind = !kind || el.dataset.kind === kind;
+    const matchPinned = !pinnedOnly || el.dataset.pinned === "1";
+    el.style.display = (matchKind && matchPinned) ? "" : "none";
+  });
+}
+</script>
+{% endblock %}

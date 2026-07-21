@@ -1,0 +1,40 @@
+[project]
+name = "absolute-story-manager"
+version = "4.0.0"
+description = "Local-first, single-user creative writing tool for managing long-form fiction"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [{name = "ASM"}]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = false
+warn_unused_configs = true
+ignore_missing_imports = true
+disallow_untyped_defs = false
+check_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "sqlalchemy.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "flask_wtf.*"
+ignore_missing_imports = true
+
+# Note on CSRF:
+# This is a local-first, single-user application with no authentication.
+# CSRF protection is exempted on all blueprints because:
+# 1. The app runs on localhost only (no external access)
+# 2. No user authentication means no session hijacking risk
+# 3. Form submissions use hidden csrf_token fields as defense-in-depth
+# 4. The exemption prevents blocking all POST requests in production mode
+# If deploying to a network-accessible server, re-enable CSRF by removing
+# the csrf.exempt() calls in app.py.

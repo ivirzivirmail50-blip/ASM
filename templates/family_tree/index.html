@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Family Tree{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>🌳 Family Tree Builder</h1>
+  <div class="subtitle">Visualize family relationships, marriages, and lineage.</div>
+  <button class="btn btn-primary" onclick="openAddModal()">+ Add Relation</button>
+</div>
+<div class="card">
+  <div id="treeGraph" style="height: 500px; background: var(--bg-elev-2); border-radius: 8px;"></div>
+</div>
+<div class="card mt-4">
+  <div class="text-xs text-mute">Legend: 🟢 Green = Parent-Child | 💗 Pink = Married | 🔵 Blue = Serves</div>
+</div>
+<script>
+fetch("/family-tree/api/tree").then(r=>r.json()).then(data => {
+  if (typeof vis === "undefined" || !data.nodes.length) return;
+  const nodes = new vis.DataSet(data.nodes.map(n => ({...n, shape: "box", font: {color:"#fff"}})));
+  const edges = new vis.DataSet(data.edges.map(e => ({...e, arrows: e.label === "parent of" ? {to:{enabled:true}} : {}, dashes: e.label === "married to"})));
+  new vis.Network(document.getElementById("treeGraph"), {nodes, edges}, {
+    layout: {hierarchical: {direction: "UD", sortMethod: "directed"}},
+    physics: {enabled: false},
+    nodes: {borderWidth: 2},
+    edges: {width: 2, font: {size: 10, background: "rgba(0,0,0,0.7)"}},
+  });
+});
+
+function openAddModal() {
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal">
+      <div class="modal-header"><h3>Add Family Relation</h3></div>
+      <div class="modal-body">
+        <div class="form-row"><label>From (parent/spouse)</label><select id="ftFrom" class="form-select">{{ characters | map(attribute='name') | list | tojson | replace('[','') | replace(']','') | replace('"','') }}</select></div>
+        <div class="form-row"><label>To (child/spouse)</label><select id="ftTo" class="form-select"></select></div>
+        <div class="form-row"><label>Type</label><select id="ftType" class="form-select"><option value="parent_of">Parent of</option><option value="married_to">Married to</option></select></div>
+      </div>
+      <div class="modal-footer"><button class="btn" onclick="this.closest('.modal-backdrop').remove()">Cancel</button><button class="btn btn-primary" onclick="saveRelation()">Add</button></div>
+    </div>`;
+  document.body.appendChild(backdrop);
+}
+async function saveRelation() { showToast("Use character detail page to add relationships", "info"); }
+</script>
+{% endblock %}

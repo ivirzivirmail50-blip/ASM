@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}Spell Check{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Spell Check</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>🔤 Spell Check</h1>
+    <div class="subtitle">Check all chapters for potential misspellings. Add words to your custom dictionary to exclude them.</div>
+  </div>
+  <button class="btn btn-primary" onclick="location.reload()">↻ Re-check</button>
+</div>
+
+<!-- Summary -->
+<div class="card-grid cols-4 mb-6">
+  <div class="card">
+    <div class="card-subtitle">Chapters checked</div>
+    <div style="font-size: 1.6rem; font-weight: 600">{{ result.chapters_checked }}</div>
+  </div>
+  <div class="card">
+    <div class="card-subtitle">Total words</div>
+    <div style="font-size: 1.6rem; font-weight: 600">{{ "{:,}".format(result.total_words) }}</div>
+  </div>
+  <div class="card">
+    <div class="card-subtitle">Flagged words</div>
+    <div style="font-size: 1.6rem; font-weight: 600; color: {{ 'var(--danger)' if result.total_flagged else 'var(--success)' }}">{{ result.total_flagged }}</div>
+  </div>
+  <div class="card">
+    <div class="card-subtitle">Custom dictionary</div>
+    <div style="font-size: 1.6rem; font-weight: 600; color: var(--accent-hover)">{{ custom_words | length }}</div>
+  </div>
+</div>
+
+<!-- Custom dictionary management -->
+<div class="card mb-6">
+  <div class="card-title mb-3">📖 Custom Dictionary</div>
+  
+  <!-- Language / mode selector -->
+  <div class="form-row mb-3">
+    <label class="form-label">Spell Check Mode</label>
+    <select id="spellCheckMode" class="form-select" style="width: auto" onchange="toggleSpellCheck()">
+      <option value="english">English (default)</option>
+      <option value="disabled">⚠ Disabled — I write in another language (Turkish, etc.)</option>
+    </select>
+    <div class="text-xs text-mute mt-1">If you write in Turkish or another non-English language, select "Disabled" to avoid false positives.</div>
+  </div>
+  
+  <div class="flex gap-2 mb-3">
+    <input type="text" id="newWord" class="form-input" placeholder="Add a word to your dictionary…" style="flex: 1">
+    <button class="btn btn-primary" onclick="addWord()">+ Add Word</button>
+  </div>
+  {% if custom_words %}
+  <div class="flex gap-1 flex-wrap">
+    {% for w in custom_words %}
+    <span class="badge" style="display: inline-flex; align-items: center; gap: 4px">
+      {{ w.word }}
+      <button onclick="deleteWord('{{ w.id }}')" style="background: none; border: none; color: var(--danger); cursor: pointer; padding: 0; font-size: 0.85rem">×</button>
+    </span>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="text-mute text-sm">No custom words yet. Add character names, place names, or invented words to exclude them from spell checking.</div>
+  {% endif %}
+</div>
+
+<!-- Flagged words per chapter -->
+{% if result.results %}
+<div class="flex flex-col gap-4">
+  {% for ch_result in result.results if ch_result.flagged_count > 0 %}
+  <div class="card">
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <a href="{{ url_for('chapters.detail', chapter_id=ch_result.chapter_id) }}"><strong>{{ ch_result.chapter_title }}</strong></a>
+        <span class="badge">{{ ch_result.flagged_count }} flagged</span>
+        <span class="text-xs text-mute">/ {{ ch_result.total_words }} words</span>
+      </div>
+    </div>
+    <div class="flex flex-col gap-2">
+      {% for f in ch_result.flagged %}
+      <div class="card" style="padding: 0.75rem; border-left: 3px solid var(--warning)">
+        <div class="flex items-center gap-2 flex-wrap mb-1">
+          <code style="background: var(--bg-elev-3); padding: 2px 8px; border-radius: 3px; color: var(--danger); font-weight: 600">{{ f.word }}</code>
+          <span class="text-xs text-mute">×{{ f.count }}</span>
+          {% if f.suggestions %}
+          <span class="text-xs text-mute">suggestions:</span>
+          {% for s in f.suggestions[:5] %}
+          <code style="background: var(--success)22; padding: 2px 6px; border-radius: 3px; color: var(--success); cursor: pointer"
+                onclick="addWordToList('{{ s }}')">{{ s }}</code>
+          {% endfor %}
+          {% endif %}
+        </div>
+        <div class="text-xs text-mute" style="background: var(--bg-elev-2); padding: 0.4rem 0.6rem; border-radius: 4px; font-family: monospace">{{ f.context }}</div>
+        <div class="flex gap-1 mt-2">
+          <button class="btn btn-sm" onclick="addWordToList('{{ f.word }}')">+ Add "{{ f.word }}" to dictionary</button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% if result.total_flagged == 0 %}
+<div class="card empty-state" style="padding: 3rem; text-align: center">
+  <div class="text-3xl mb-2">✓</div>
+  <div class="text-sm">No misspellings found! All words are in the dictionary.</div>
+</div>
+{% endif %}
+{% else %}
+<div class="card empty-state" style="padding: 3rem; text-align: center">
+  <div class="text-3xl mb-2">🔤</div>
+  <div class="text-mute text-sm">No chapters to check yet.</div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Restore spell check mode from localStorage
+(function() {
+  const mode = localStorage.getItem("asm:spellcheck-mode") || "english";
+  const sel = document.getElementById("spellCheckMode");
+  if (sel) sel.value = mode;
+  // If disabled, hide flagged words section
+  if (mode === "disabled") {
+    const flagged = document.querySelector(".flex.flex-col.gap-4");
+    if (flagged) flagged.style.display = "none";
+  }
+})();
+
+function toggleSpellCheck() {
+  const mode = document.getElementById("spellCheckMode").value;
+  localStorage.setItem("asm:spellcheck-mode", mode);
+  if (mode === "disabled") {
+    showToast("Spell check disabled. Reload to hide all flagged words.", "info", 3000);
+  } else {
+    showToast("Spell check enabled (English).", "success", 2000);
+  }
+  setTimeout(() => location.reload(), 1000);
+}
+
+async function addWord() {
+  const word = document.getElementById("newWord").value.trim();
+  if (!word) return;
+  const { data } = await asmFetch("/spellcheck/api/words/add", {
+    method: "POST",
+    body: { word }
+  });
+  if (data.ok) {
+    showToast(`"${word}" added to dictionary`, "success");
+    document.getElementById("newWord").value = "";
+    setTimeout(() => location.reload(), 600);
+  } else {
+    showToast(data.error || "Failed", "error");
+  }
+}
+
+async function addWordToList(word) {
+  const { data } = await asmFetch("/spellcheck/api/words/add", {
+    method: "POST",
+    body: { word }
+  });
+  if (data.ok) {
+    showToast(`"${word}" added to dictionary`, "success");
+    setTimeout(() => location.reload(), 600);
+  }
+}
+
+async function deleteWord(id) {
+  const { data } = await asmFetch(`/spellcheck/api/words/${id}/delete`, { method: "POST" });
+  if (data.ok) {
+    showToast("Word removed", "success");
+    setTimeout(() => location.reload(), 500);
+  }
+}
+
+document.getElementById("newWord").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); addWord(); }
+});
+</script>
+{% endblock %}

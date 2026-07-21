@@ -59,8 +59,9 @@ class CharacterRelationship(Base):
     __tablename__ = "character_relationships"
 
     id = Column(String, primary_key=True)
-    from_character_id = Column(String, ForeignKey("characters.id"), index=True)
-    to_character_id = Column(String, ForeignKey("characters.id"), index=True)
+    # No FK constraint — allows group IDs (g-<id>) as well as character IDs
+    from_character_id = Column(String, index=True)
+    to_character_id = Column(String, index=True)
     relationship_type = Column(String(60), index=True)
     description = Column(Text)
     is_bidirectional = Column(Boolean, default=False)

@@ -184,6 +184,9 @@ button { cursor: pointer; }
   display: flex;
   flex-direction: column;
   gap: 2px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
 }
 .sidebar-section-label {
   padding: 0.85rem 0.85rem 0.35rem;

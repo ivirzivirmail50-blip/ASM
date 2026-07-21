@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block title %}Chapter Dependencies{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('chapters.list_view') }}">Chapters</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Dependencies</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>🔗 Chapter Dependencies</h1>
+    <div class="subtitle">Define which chapters must come before others. Detects cycles, ordering violations, and blocked chapters.</div>
+  </div>
+</div>
+
+<!-- Summary -->
+<div class="card-grid cols-4 mb-6">
+  <div class="card">
+    <div class="card-subtitle">Chapters</div>
+    <div style="font-size: 1.6rem; font-weight: 600">{{ graph.total_chapters }}</div>
+  </div>
+  <div class="card">
+    <div class="card-subtitle">Dependencies</div>
+    <div style="font-size: 1.6rem; font-weight: 600; color: var(--accent-hover)">{{ graph.total_dependencies }}</div>
+  </div>
+  <div class="card">
+    <div class="card-subtitle">Cycles</div>
+    <div style="font-size: 1.6rem; font-weight: 600; color: {{ 'var(--danger)' if graph.cycles else 'var(--success)' }}">{{ graph.cycles | length }}</div>
+  </div>
+  <div class="card">
+    <div class="card-subtitle">Violations</div>
+    <div style="font-size: 1.6rem; font-weight: 600; color: {{ 'var(--warning)' if graph.violations else 'var(--success)' }}">{{ graph.violations | length }}</div>
+  </div>
+</div>
+
+<!-- Add dependency form -->
+<div class="card mb-6">
+  <div class="card-title mb-3">+ Add Dependency</div>
+  <div class="card-grid cols-3 mb-3">
+    <div class="form-row">
+      <label class="form-label">Chapter (depends on…)</label>
+      <select id="fromCh" class="form-select">
+        {% for c in chapters %}
+        <option value="{{ c.id }}">{{ c.title }} (#{{ c.sort_order }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-row">
+      <label class="form-label">…must come after</label>
+      <select id="toCh" class="form-select">
+        {% for c in chapters %}
+        <option value="{{ c.id }}">{{ c.title }} (#{{ c.sort_order }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-row flex items-end">
+      <button class="btn btn-primary" onclick="addDep()">+ Add</button>
+    </div>
+  </div>
+  <div class="text-xs text-mute">"Chapter A depends on Chapter B" means B must be written/read before A.</div>
+</div>
+
+<!-- Issues -->
+{% if graph.cycles %}
+<div class="card mb-6" style="border-left: 3px solid var(--danger)">
+  <div class="card-title mb-2">⚠ Cycles Detected ({{ graph.cycles | length }})</div>
+  {% for cycle in graph.cycles %}
+  <div class="text-sm mb-1">
+    <span class="badge" style="background: var(--danger); color: white">CYCLE</span>
+    {{ cycle | join(" → ") }}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if graph.violations %}
+<div class="card mb-6" style="border-left: 3px solid var(--warning)">
+  <div class="card-title mb-2">⚠ Ordering Violations ({{ graph.violations | length }})</div>
+  {% for v in graph.violations %}
+  <div class="card" style="padding: 0.6rem; margin-bottom: 0.5rem; border-left: 3px solid var(--warning)">
+    <span class="badge">{{ v.from_title }} (#{{ v.from_sort_order }})</span>
+    → depends on →
+    <span class="badge">{{ v.to_title }} (#{{ v.to_sort_order }})</span>
+    <div class="text-xs text-mute mt-1">{{ v.message }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if graph.blocked %}
+<div class="card mb-6" style="border-left: 3px solid var(--info)">
+  <div class="card-title mb-2">🚫 Blocked Chapters ({{ graph.blocked | length }})</div>
+  {% for b in graph.blocked %}
+  <div class="card" style="padding: 0.6rem; margin-bottom: 0.5rem">
+    <strong>{{ b.title }}</strong> (#{{ b.sort_order }})
+    <div class="text-xs text-mute mt-1">Unmet dependencies:
+      {% for u in b.unmet_deps %}
+      <span class="badge">{{ u.title }} (#{{ u.sort_order }})</span>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Dependency graph (vis-network) -->
+<div class="card mb-6">
+  <div class="card-title mb-3">📊 Dependency Graph</div>
+  <div id="depGraph" style="height: 400px; background: var(--bg-elev-2); border-radius: 6px"></div>
+</div>
+
+<!-- Dependency list -->
+<div class="card">
+  <div class="card-title mb-3">📋 Dependencies ({{ graph.dependencies | length }})</div>
+  {% if graph.dependencies %}
+  <div class="flex flex-col gap-2">
+    {% for dep in graph.dependencies %}
+    {% set from_ch = graph.chapters | selectattr('id', 'equalto', dep.from) | first %}
+    {% set to_ch = graph.chapters | selectattr('id', 'equalto', dep.to) | first %}
+    <div class="card" style="padding: 0.6rem; display: flex; align-items: center; gap: 0.5rem">
+      <span>{{ from_ch.title if from_ch else '?' }}</span>
+      <span class="text-mute">→ depends on →</span>
+      <span>{{ to_ch.title if to_ch else '?' }}</span>
+      <button class="btn btn-sm btn-ghost text-danger ml-auto"
+              onclick="removeDep('{{ dep.from }}', '{{ dep.to }}')">×</button>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="text-mute text-sm" style="padding: 1rem">No dependencies defined yet.</div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const GRAPH_DATA = {{ graph | tojson }};
+
+async function addDep() {
+  const fromId = document.getElementById("fromCh").value;
+  const toId = document.getElementById("toCh").value;
+  if (fromId === toId) { showToast("A chapter cannot depend on itself", "warning"); return; }
+  const { data } = await asmFetch("/chapter-deps/api/add", {
+    method: "POST",
+    body: { from_chapter_id: fromId, to_chapter_id: toId }
+  });
+  if (data.ok) { showToast("Dependency added", "success"); setTimeout(() => location.reload(), 500); }
+  else { showToast(data.error || "Failed", "error"); }
+}
+
+async function removeDep(fromId, toId) {
+  const { data } = await asmFetch("/chapter-deps/api/remove", {
+    method: "POST",
+    body: { from_chapter_id: fromId, to_chapter_id: toId }
+  });
+  if (data.ok) { showToast("Removed", "success"); setTimeout(() => location.reload(), 500); }
+}
+
+// Render vis-network graph
+if (typeof vis !== "undefined" && GRAPH_DATA.chapters.length > 0) {
+  const nodes = GRAPH_DATA.chapters.map((ch, i) => ({
+    id: ch.id,
+    label: `${ch.title}\n(#${ch.sort_order})`,
+    color: ch.status === "final" ? "#34d399" : ch.status === "revised" ? "#facc15" : "#60a5fa",
+    shape: "box",
+    margin: 10,
+  }));
+  const edges = GRAPH_DATA.dependencies.map(dep => ({
+    from: dep.to,    // dependency points FROM the prerequisite TO the dependent
+    to: dep.from,
+    arrows: "to",
+    color: "#94a3b8",
+  }));
+  const container = document.getElementById("depGraph");
+  if (container) {
+    new vis.Network(container, { nodes, edges }, {
+      layout: { hierarchical: { direction: "LR", sortMethod: "directed" } },
+      physics: { enabled: false },
+      interaction: { dragNodes: true, zoomView: true },
+    });
+  }
+}
+</script>
+{% endblock %}

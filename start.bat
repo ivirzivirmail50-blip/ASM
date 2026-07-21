@@ -6,12 +6,12 @@ REM ============================================================
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
-set HOST=127.0.0.1
-set PORT=5555
+set HOST=0.0.0.0
+set PORT=3000
 
 echo.
 echo ============================================
-echo   Absolute Story Manager v4.0 - Launcher
+echo   Absolute Story Manager v5.0 - Launcher
 echo ============================================
 echo.
 

@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Achievements{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Achievements</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>🏆 Achievements</h1>
+    <div class="subtitle">Unlock badges as you write. {{ status.unlocked_count }} of {{ status.total_count }} unlocked ({{ status.completion_pct }}%).</div>
+  </div>
+  <button class="btn btn-primary" onclick="checkNow()">↻ Check for New</button>
+</div>
+
+<!-- Progress overview -->
+<div class="card mb-6" style="background: var(--bg-elev-2)">
+  <div class="flex items-center gap-4">
+    <div style="font-size: 3rem">{{ status.completion_pct >= 100 and '🌟' or '🏆' }}</div>
+    <div class="flex-1">
+      <div class="card-title">Completion Progress</div>
+      <div class="progress" style="height: 14px; margin-top: 0.5rem">
+        <div class="progress-bar accent" style="width: {{ status.completion_pct }}%"></div>
+      </div>
+      <div class="text-sm text-mute mt-1">{{ status.unlocked_count }} / {{ status.total_count }} achievements unlocked</div>
+    </div>
+    <div class="text-right">
+      <div class="text-xs text-mute">Current streak</div>
+      <div style="font-size: 2rem; font-weight: 700; color: var(--warning)">🔥 {{ status.context.current_streak }}</div>
+      <div class="text-xs text-mute">days</div>
+    </div>
+  </div>
+</div>
+
+<!-- Context summary -->
+<div class="card-grid cols-5 mb-6">
+  <div class="card text-center">
+    <div class="card-subtitle">Total words</div>
+    <div style="font-size: 1.4rem; font-weight: 600">{{ "{:,}".format(status.context.total_words) }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Chapters</div>
+    <div style="font-size: 1.4rem; font-weight: 600">{{ status.context.chapter_count }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Characters</div>
+    <div style="font-size: 1.4rem; font-weight: 600">{{ status.context.character_count }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">World entries</div>
+    <div style="font-size: 1.4rem; font-weight: 600">{{ status.context.world_count }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Days this week</div>
+    <div style="font-size: 1.4rem; font-weight: 600">{{ status.context.days_this_week }}/7</div>
+  </div>
+</div>
+
+<!-- Achievements grouped by category -->
+{% set grouped = {} %}
+{% for a in status.achievements %}
+  {% if grouped[a.category] is not defined %}{% set _ = grouped.update({a.category: []}) %}{% endif %}
+  {% set _ = grouped[a.category].append(a) %}
+{% endfor %}
+
+{% for cat_key, cat_info in categories.items() %}
+  {% if grouped.get(cat_key) %}
+  <div class="card mb-6">
+    <div class="card-title mb-3">{{ cat_info.icon }} {{ cat_info.label }}
+      <span class="badge">{{ grouped[cat_key] | selectattr('unlocked') | list | length }}/{{ grouped[cat_key] | length }}</span>
+    </div>
+    <div class="card-grid cols-3">
+      {% for a in grouped[cat_key] %}
+      <div class="card" style="padding: 1rem; {{ '' if a.unlocked else 'opacity: 0.6; filter: grayscale(0.5)' }}; border-left: 3px solid {{ 'var(--success)' if a.unlocked else 'var(--border)' }}">
+        <div class="flex items-start gap-2 mb-2">
+          <span style="font-size: 2rem">{{ a.icon }}</span>
+          <div class="flex-1">
+            <div style="font-weight: 600; font-size: 0.95rem">{{ a.name }}</div>
+            <div class="text-xs text-mute">{{ a.description }}</div>
+          </div>
+          {% if a.unlocked %}
+          <span class="badge" style="background: var(--success); color: white">✓</span>
+          {% endif %}
+        </div>
+        {% if not a.unlocked %}
+        <div class="mt-2">
+          <div class="progress" style="height: 6px">
+            <div class="progress-bar accent" style="width: {{ a.progress }}%"></div>
+          </div>
+          <div class="text-xs text-mute mt-1">{{ a.progress_label }}</div>
+        </div>
+        {% else %}
+        <div class="text-xs text-mute mt-1">Unlocked {{ a.unlocked_at[:10] if a.unlocked_at else '' }}</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+{% endfor %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function checkNow() {
+  const { data } = await asmFetch("/achievements/api/check", { method: "POST" });
+  if (data.ok) {
+    if (data.newly_unlocked.length > 0) {
+      const names = data.newly_unlocked.map(a => `${a.icon} ${a.name}`).join(", ");
+      showToast(`🎉 New achievement${data.newly_unlocked.length > 1 ? 's' : ''}: ${names}`, "success", 5000);
+    } else {
+      showToast("No new achievements yet — keep writing!", "info", 2000);
+    }
+    setTimeout(() => location.reload(), 1500);
+  }
+}
+</script>
+{% endblock %}

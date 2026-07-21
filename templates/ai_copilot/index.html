@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}AI Copilot{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>🤖 AI Editor Copilot</h1>
+  <div class="subtitle">AI-powered writing suggestions: continue, expand, shorten, or generate dialogue.</div>
+</div>
+<div class="card mb-6">
+  <div class="form-row mb-3">
+    <label class="form-label">Paste your text or select a chapter:</label>
+    <select id="chapterSelect" class="form-select mb-2">
+      <option value="">— Manual input —</option>
+      {% for c in chapters %}
+      <option value="{{ c.id }}">{{ c.title }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <textarea id="inputText" class="form-textarea" rows="8" placeholder="Paste or type your text here..."></textarea>
+  <div class="flex gap-2 mt-3 flex-wrap">
+    <button class="btn btn-primary" onclick="getSuggestion('continue')">✍ Continue</button>
+    <button class="btn" onclick="getSuggestion('expand')">📐 Expand</button>
+    <button class="btn" onclick="getSuggestion('shorter')">✂ Shorten</button>
+    <button class="btn" onclick="getSuggestion('dialogue')">💬 Dialogue</button>
+  </div>
+</div>
+<div class="card" id="resultCard" style="display:none">
+  <div class="card-title mb-2">AI Suggestion</div>
+  <div id="resultText" style="white-space: pre-wrap; line-height: 1.7; font-size: 1rem;"></div>
+  <div class="flex gap-2 mt-3">
+    <button class="btn btn-sm" onclick="copyResult()">📋 Copy</button>
+    <button class="btn btn-sm btn-primary" onclick="appendResult()">→ Append to text</button>
+  </div>
+</div>
+<script>
+document.getElementById("chapterSelect").addEventListener("change", async function() {
+  if (!this.value) return;
+  const res = await fetch(`/chapters/${this.value}`);
+  const html = await res.text();
+  const match = html.match(/<textarea[^>]*id="[^"]*content[^"]*"[^>]*>([\s\S]*?)<\/textarea>/i);
+  document.getElementById("inputText").value = match ? match[1].replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&amp;/g,"&") : "";
+});
+
+async function getSuggestion(action) {
+  const text = document.getElementById("inputText").value.trim();
+  if (!text) { showToast("Enter some text first", "warning"); return; }
+  document.getElementById("resultCard").style.display = "block";
+  document.getElementById("resultText").innerHTML = '<span class="text-mute">Generating...</span>';
+  const { data } = await asmFetch("/ai-copilot/api/suggest", { method: "POST", body: { text, action } });
+  if (data.ok) {
+    document.getElementById("resultText").textContent = data.suggestion;
+  } else {
+    document.getElementById("resultText").innerHTML = `<span class="text-danger">${escapeHtml(data.error || "Failed")}</span>`;
+  }
+}
+
+function copyResult() {
+  navigator.clipboard.writeText(document.getElementById("resultText").textContent);
+  showToast("Copied!", "success", 1500);
+}
+
+function appendResult() {
+  const input = document.getElementById("inputText");
+  input.value += "\n\n" + document.getElementById("resultText").textContent;
+  showToast("Appended!", "success", 1500);
+}
+</script>
+{% endblock %}

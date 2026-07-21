@@ -37,5 +37,5 @@ class ChapterVersion(Base):
     content = Column(Text)
     word_count = Column(Integer, default=0)
     source = Column(String(40))  # manual/reupload/status_change/split/merge
-    uploaded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    uploaded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
     notes = Column(Text)

@@ -267,8 +267,23 @@ def create_relationship(
         raise ValidationError("Cannot relate a character to themselves.")
     rid = new_uuid()
     with write_transaction() as s:
-        if not s.get(Character, from_id) or not s.get(Character, to_id):
-            raise NotFoundError("Character not found.")
+        # Validate from_id: either a character or a group (g-<group_id>)
+        from_is_group = from_id.startswith("g-")
+        to_is_group = to_id.startswith("g-")
+        if from_is_group:
+            from_group = s.get(CharacterGroup, from_id[2:])
+            if not from_group:
+                raise NotFoundError("Group not found.")
+        else:
+            if not s.get(Character, from_id):
+                raise NotFoundError("Character not found.")
+        if to_is_group:
+            to_group = s.get(CharacterGroup, to_id[2:])
+            if not to_group:
+                raise NotFoundError("Group not found.")
+        else:
+            if not s.get(Character, to_id):
+                raise NotFoundError("Character not found.")
         rel = CharacterRelationship(
             id=rid, from_character_id=from_id, to_character_id=to_id,
             relationship_type=rel_type, description=description,

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Serial Platform{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>📖 Web Serial Platform</h1>
+  <div class="subtitle">Read your manuscript as a serialized story with a clean reader interface.</div>
+</div>
+<div class="card">
+  <div class="card-title mb-3">Chapters ({{ total }})</div>
+  <div class="flex flex-col gap-2">
+    {% for c in chapters %}
+    <div class="card" style="padding: 1rem; display: flex; align-items: center; gap: 1rem;">
+      <span style="font-size: 1.5rem; color: var(--text-mute); min-width: 30px;">{{ loop.index }}</span>
+      <div class="flex-1">
+        <a href="/serial/read/{{ c.id }}" style="font-weight: 600; font-size: 1.1rem;">{{ c.title }}</a>
+        <div class="text-xs text-mute">{{ c.word_count }} words · {{ c.status }}</div>
+        {% if c.synopsis %}<div class="text-sm text-mute mt-1">{{ c.synopsis[:150] }}{% if c.synopsis|length > 150 %}…{% endif %}</div>{% endif %}
+      </div>
+      <a href="/serial/read/{{ c.id }}" class="btn btn-sm btn-primary">📖 Read</a>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

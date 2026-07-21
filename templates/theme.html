@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}Theme & CSS Editor{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('settings.index') }}">Settings</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Theme Editor</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>🎨 Theme & CSS Editor</h1>
+    <div class="subtitle">Pick a preset theme, override individual colors, change fonts, or write custom CSS.</div>
+  </div>
+  <div class="flex gap-2">
+    <button class="btn btn-ghost" onclick="resetTheme()">↺ Reset to Default</button>
+    <button class="btn btn-primary" onclick="saveTheme()">💾 Save Theme</button>
+  </div>
+</div>
+
+<!-- Preview pane -->
+<div class="card mb-6" style="background: var(--bg-elev-2)">
+  <div class="card-title mb-3">👁 Live Preview</div>
+  <div id="previewPane" style="padding: 1.5rem; border-radius: 8px; border: 1px solid var(--border); transition: all 0.2s">
+    <h3 style="color: var(--text); margin-bottom: 0.5rem">Sample Heading</h3>
+    <p style="color: var(--text-dim); line-height: 1.6">
+      This is sample body text in your chosen theme. The quick brown fox jumps over the lazy dog.
+      <a href="#" style="color: var(--accent)">This is a link</a>.
+    </p>
+    <div class="flex gap-2 mt-3">
+      <button class="btn btn-primary">Primary</button>
+      <button class="btn">Default</button>
+      <span class="badge" style="background: var(--success)22; color: var(--success)">✓ Success</span>
+      <span class="badge" style="background: var(--warning)22; color: var(--warning)">⚠ Warning</span>
+      <span class="badge" style="background: var(--danger)22; color: var(--danger)">✕ Danger</span>
+    </div>
+  </div>
+</div>
+
+<form id="themeForm" class="card mb-6">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <!-- Preset themes -->
+  <div class="card-title mb-3">🎨 Preset Themes</div>
+  <div class="card-grid cols-4 mb-6">
+    {% for p in presets %}
+    <label style="cursor: pointer; padding: 1rem; border: 2px solid {{ 'var(--accent)' if config.preset == p.key else 'var(--border)' }}; border-radius: 8px; text-align: center"
+           onclick="selectPreset('{{ p.key }}')">
+      <input type="radio" name="preset" value="{{ p.key }}" style="display: none" {{ 'checked' if config.preset == p.key }}>
+      <div style="font-size: 2rem">{{ p.icon }}</div>
+      <div style="font-weight: 600; margin-top: 0.3rem">{{ p.label }}</div>
+    </label>
+    {% endfor %}
+  </div>
+
+  <!-- Font overrides -->
+  <div class="card-title mb-3">📝 Font Overrides</div>
+  <div class="card-grid cols-2 mb-4">
+    <div class="form-row">
+      <label class="form-label">Font family (CSS, e.g. 'Georgia, serif' or 'Inter, sans-serif')</label>
+      <input type="text" name="font_family" id="font_family" class="form-input"
+             value="{{ config.font_family }}" placeholder="Leave empty for default"
+             oninput="updatePreview()">
+    </div>
+    <div class="form-row">
+      <label class="form-label">Base font size (e.g. 16px, 18px, 1rem)</label>
+      <input type="text" name="base_font_size" id="base_font_size" class="form-input"
+             value="{{ config.base_font_size }}" placeholder="Leave empty for default"
+             oninput="updatePreview()">
+    </div>
+  </div>
+
+  <!-- Color overrides -->
+  <div class="card-title mb-3">🎨 Color Overrides (override preset values)</div>
+  <div class="card-grid cols-4 mb-4" id="colorOverrides">
+    {% set default_vars = preset_themes[config.preset].vars if config.preset in preset_themes else preset_themes['dark'].vars %}
+    {% for var_name, default_val in default_vars.items() %}
+    <div class="form-row">
+      <label class="form-label text-xs">{{ var_name }}</label>
+      <div class="flex gap-1 items-center">
+        <input type="color" data-var="{{ var_name }}" value="{{ config.overrides.get(var_name, default_val) }}"
+               oninput="updateColorOverride(this)" style="width: 40px; height: 32px; padding: 0; border: none">
+        <input type="text" data-var-text="{{ var_name }}" value="{{ config.overrides.get(var_name, default_val) }}"
+               oninput="syncColorText(this)" class="form-input" style="font-family: monospace; font-size: 0.8rem">
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Custom CSS -->
+  <div class="card-title mb-3 mt-4">✏ Custom CSS (freeform)</div>
+  <div class="form-row">
+    <textarea name="custom_css" id="custom_css" class="form-textarea" rows="8"
+              style="font-family: monospace; font-size: 0.85rem"
+              placeholder="/* Add any custom CSS here */&#10;.card { border-radius: 12px; }&#10;.sidebar { width: 240px; }"
+              oninput="updatePreview()">{{ config.custom_css }}</textarea>
+  </div>
+  <div class="text-xs text-mute mt-1">Max 10,000 characters. This CSS is injected after the preset and overrides.</div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function selectPreset(key) {
+  // Update radio buttons
+  document.querySelectorAll('input[name="preset"]').forEach(r => {
+    r.checked = r.value === key;
+  });
+  // Update border styling
+  document.querySelectorAll('#colorOverrides').forEach(() => {});
+  updatePreview();
+}
+
+function updateColorOverride(input) {
+  // Sync the text input
+  const textInput = document.querySelector(`[data-var-text="${input.dataset.var}"]`);
+  if (textInput) textInput.value = input.value;
+  updatePreview();
+}
+
+function syncColorText(input) {
+  // Sync the color picker
+  const colorInput = document.querySelector(`[data-var="${input.dataset.varText}"]`);
+  if (colorInput) colorInput.value = input.value;
+  updatePreview();
+}
+
+function buildConfig() {
+  const preset = document.querySelector('input[name="preset"]:checked')?.value || "dark";
+  const overrides = {};
+  document.querySelectorAll('[data-var]').forEach(input => {
+    overrides[input.dataset.var] = input.value;
+  });
+  return {
+    preset,
+    overrides,
+    font_family: document.getElementById("font_family").value,
+    base_font_size: document.getElementById("base_font_size").value,
+    custom_css: document.getElementById("custom_css").value,
+  };
+}
+
+async function updatePreview() {
+  const config = buildConfig();
+  // Build a preview <style> and inject into the preview pane
+  const { data } = await asmFetch(`/theme/api/css?preview=1&preset=${encodeURIComponent(config.preset)}&font_family=${encodeURIComponent(config.font_family)}&base_font_size=${encodeURIComponent(config.base_font_size)}&custom_css=${encodeURIComponent(config.custom_css)}`, { method: "GET" });
+  if (!data.ok) return;
+  // Remove old preview style
+  let styleEl = document.getElementById("previewStyle");
+  if (!styleEl) {
+    styleEl = document.createElement("style");
+    styleEl.id = "previewStyle";
+    document.head.appendChild(styleEl);
+  }
+  // Scope the CSS to #previewPane by prefixing selectors
+  const scoped = data.css.replace(/([^{}]+)\{/g, (match, selector) => {
+    // Don't scope :root
+    if (selector.includes(":root")) {
+      return `#previewPaneRoot {`;
+    }
+    return `#previewPane ${selector}{`;
+  });
+  // For :root vars, we need them on the preview pane
+  const rootVars = data.css.match(/:root[^}]*\}/);
+  styleEl.textContent = (rootVars ? `#previewPane { ${rootVars[0].replace(/:root[^{]*\{/, '').replace(/\}$/, '')} }` : '') + "\n" + config.custom_css;
+}
+
+async function saveTheme() {
+  const config = buildConfig();
+  const { data } = await asmFetch("/theme/api/config", { method: "POST", body: config });
+  if (data.ok) {
+    showToast("Theme saved! Reloading…", "success");
+    setTimeout(() => location.reload(), 800);
+  } else {
+    showToast(data.error || "Failed", "error");
+  }
+}
+
+async function resetTheme() {
+  const ok = await confirmDialog("Reset theme to default? This will discard all customizations.", { danger: true, okLabel: "Reset" });
+  if (!ok) return;
+  const { data } = await asmFetch("/theme/api/reset", { method: "POST" });
+  if (data.ok) {
+    showToast("Reset to default.", "success");
+    setTimeout(() => location.reload(), 600);
+  }
+}
+
+// Init preview on load
+updatePreview();
+</script>
+{% endblock %}

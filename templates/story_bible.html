@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}Story Bible{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Story Bible</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>📚 Story Bible Auto-Generator</h1>
+    <div class="subtitle">Automatically compiles your characters, world, timeline, and glossary into a single reference document.</div>
+  </div>
+  <div class="flex gap-2">
+    <button class="btn" onclick="downloadBible('txt')">⬇ TXT</button>
+    <button class="btn" onclick="downloadBible('md')">⬇ MD</button>
+    <button class="btn" onclick="downloadBible('json')">⬇ JSON</button>
+    <button class="btn btn-primary" onclick="downloadBible('html')">⬇ HTML</button>
+  </div>
+</div>
+
+<!-- Title -->
+<div class="card mb-6" style="text-align: center; background: var(--bg-elev-2); padding: 2rem">
+  <h1 style="font-size: 2rem; margin-bottom: 0.3rem">{{ data.title }}</h1>
+  {% if data.subtitle %}<div class="text-mute" style="font-style: italic">{{ data.subtitle }}</div>{% endif %}
+  <div class="text-mute">by {{ data.author }}</div>
+  {% if data.logline %}
+  <div style="margin-top: 1rem; padding: 0.75rem; background: var(--bg-elev-1); border-radius: 6px; font-size: 1.05rem">
+    <strong>Logline:</strong> {{ data.logline }}
+  </div>
+  {% endif %}
+</div>
+
+<!-- Stats -->
+<div class="card-grid cols-6 mb-6">
+  <div class="card text-center">
+    <div class="card-subtitle">Chapters</div>
+    <div style="font-size: 1.4rem; font-weight: 600">{{ data.stats.chapter_count }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Characters</div>
+    <div style="font-size: 1.4rem; font-weight: 600">{{ data.stats.character_count }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">World entries</div>
+    <div style="font-size: 1.4rem; font-weight: 600">{{ data.stats.world_count }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Timeline events</div>
+    <div style="font-size: 1.4rem; font-weight: 600">{{ data.stats.timeline_event_count }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Glossary terms</div>
+    <div style="font-size: 1.4rem; font-weight: 600">{{ data.stats.glossary_count }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Total words</div>
+    <div style="font-size: 1.4rem; font-weight: 600; color: var(--accent-hover)">{{ "{:,}".format(data.stats.total_words) }}</div>
+  </div>
+</div>
+
+<!-- Plot summary -->
+<div class="card mb-6">
+  <div class="card-title mb-3">📖 Plot Summary ({{ data.chapters | length }} chapters)</div>
+  {% if data.chapters %}
+  <ol>
+    {% for ch in data.chapters %}
+    <li style="margin: 0.5rem 0">
+      <strong>{{ ch.title }}</strong> <span class="text-mute text-xs">({{ ch.word_count }} words, {{ ch.status }})</span>
+      {% if ch.synopsis %}<br><em class="text-sm text-mute">{{ ch.synopsis }}</em>{% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <div class="text-mute text-sm">No chapters yet.</div>
+  {% endif %}
+</div>
+
+<!-- Characters preview -->
+<div class="card mb-6">
+  <div class="card-title mb-3">👥 Characters ({{ data.characters | length }})</div>
+  {% if data.characters %}
+  <div class="card-grid cols-2">
+    {% for c in data.characters[:6] %}
+    <div class="card" style="padding: 0.9rem">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="avatar avatar-sm" style="background: {{ c.avatar_color or '#6366f1' }}">{{ c.name[:1]|upper }}</span>
+        <strong>{{ c.name }}</strong>
+        <span class="badge">{{ c.role or 'no role' }}</span>
+      </div>
+      {% if c.background %}<div class="text-xs text-mute">{{ c.background[:150] }}…</div>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% if data.characters | length > 6 %}
+  <div class="text-xs text-mute mt-2">+ {{ data.characters | length - 6 }} more characters in the full bible.</div>
+  {% endif %}
+  {% else %}
+  <div class="text-mute text-sm">No characters yet.</div>
+  {% endif %}
+</div>
+
+<!-- World entries preview -->
+<div class="card mb-6">
+  <div class="card-title mb-3">🌍 World Entries ({{ data.world_entries | length }})</div>
+  {% if data.world_entries %}
+  <div class="flex gap-1 flex-wrap">
+    {% set types = {} %}
+    {% for e in data.world_entries %}{% if types[e.type] is not defined %}{% set _ = types.update({e.type: 0}) %}{% endif %}{% set _ = types.update({e.type: types[e.type] + 1}) %}{% endfor %}
+    {% for t, count in types.items() %}
+    <span class="badge">{{ t }}: {{ count }}</span>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="text-mute text-sm">No world entries yet.</div>
+  {% endif %}
+</div>
+
+<!-- Timeline preview -->
+<div class="card mb-6">
+  <div class="card-title mb-3">📅 Timeline ({{ data.timeline | length }} events)</div>
+  {% if data.timeline %}
+  <ol>
+    {% for ev in data.timeline[:5] %}
+    <li><strong>{{ ev.story_date }}</strong> — {{ ev.title }} <span class="badge">{{ ev.event_type }}</span></li>
+    {% endfor %}
+  </ol>
+  {% if data.timeline | length > 5 %}
+  <div class="text-xs text-mute mt-2">+ {{ data.timeline | length - 5 }} more events in the full bible.</div>
+  {% endif %}
+  {% else %}
+  <div class="text-mute text-sm">No timeline events yet.</div>
+  {% endif %}
+</div>
+
+<!-- Glossary preview -->
+<div class="card">
+  <div class="card-title mb-3">📖 Glossary ({{ data.glossary | length }} terms)</div>
+  {% if data.glossary %}
+  <div class="flex gap-1 flex-wrap">
+    {% for g in data.glossary[:20] %}
+    <span class="badge">{{ g.term }}</span>
+    {% endfor %}
+  </div>
+  {% if data.glossary | length > 20 %}
+  <div class="text-xs text-mute mt-2">+ {{ data.glossary | length - 20 }} more terms in the full bible.</div>
+  {% endif %}
+  {% else %}
+  <div class="text-mute text-sm">No glossary terms yet.</div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function downloadBible(fmt) {
+  showToast(`Generating ${fmt.toUpperCase()} story bible…`, "info", 1500);
+  setTimeout(() => {
+    window.location.href = `/story-bible/download?format=${fmt}`;
+  }, 200);
+}
+</script>
+{% endblock %}

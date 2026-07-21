@@ -40,6 +40,14 @@
         </select>
       </div>
       <div class="form-row">
+        <label class="form-label">Interface Language</label>
+        <select name="ui_language" class="form-select" data-setting>
+          {% for code, info in supported_languages.items() %}
+          <option value="{{ code }}" {{ 'selected' if ui_lang == code }}>{{ info.icon }} {{ info.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-row">
         <label class="form-label">Editor font</label>
         <select name="editor_font" class="form-select" data-setting>
           <option value="serif" {{ 'selected' if settings.editor_font == 'serif' }}>Serif (Noto Serif)</option>

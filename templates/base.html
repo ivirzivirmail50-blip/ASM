@@ -12,6 +12,12 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/easymde/easymde.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
 
+  {% if custom_theme_css %}
+  <style id="custom-theme-css">
+  {{ custom_theme_css | safe }}
+  </style>
+  {% endif %}
+
   <script>
     window.ASM = {
       csrfToken: "{{ csrf_token }}",
@@ -49,6 +55,46 @@
            class="{{ 'active' if active_nav == 'chapters' else '' }}">
           <span class="nav-icon">▤</span><span>Chapters</span>
         </a>
+        <a href="{{ url_for('chapter_deps.index') }}"
+           class="{{ 'active' if active_nav == 'chapter_deps' else '' }}">
+          <span class="nav-icon">🔗</span><span>Chapter Deps</span>
+        </a>
+        <a href="{{ url_for('reading.index') }}"
+           class="{{ 'active' if active_nav == 'reading' else '' }}">
+          <span class="nav-icon">📖</span><span>Reading Mode</span>
+        </a>
+        <a href="{{ url_for('scenes.index') }}"
+           class="{{ 'active' if active_nav == 'scenes' else '' }}">
+          <span class="nav-icon">🎬</span><span>Scene Cards</span>
+        </a>
+        <a href="{{ url_for('journal.index') }}"
+           class="{{ 'active' if active_nav == 'journal' else '' }}">
+          <span class="nav-icon">📔</span><span>Writing Journal</span>
+        </a>
+        <a href="{{ url_for('achievements.index') }}"
+           class="{{ 'active' if active_nav == 'achievements' else '' }}">
+          <span class="nav-icon">🏆</span><span>Achievements</span>
+        </a>
+        <a href="{{ url_for('milestones.index') }}"
+           class="{{ 'active' if active_nav == 'milestones' else '' }}">
+          <span class="nav-icon">🎉</span><span>Milestones</span>
+        </a>
+        <a href="{{ url_for('goals_calendar.index') }}"
+           class="{{ 'active' if active_nav == 'goals' else '' }}">
+          <span class="nav-icon">📅</span><span>Goals Calendar</span>
+        </a>
+        <a href="{{ url_for('sessions.index') }}"
+           class="{{ 'active' if active_nav == 'sessions' else '' }}">
+          <span class="nav-icon">🍅</span><span>Session Timer</span>
+        </a>
+        <a href="{{ url_for('music.index') }}"
+           class="{{ 'active' if active_nav == 'music' else '' }}">
+          <span class="nav-icon">🎵</span><span>Music Player</span>
+        </a>
+        <a href="{{ url_for('story_bible.index') }}"
+           class="{{ 'active' if active_nav == 'story_bible' else '' }}">
+          <span class="nav-icon">📚</span><span>Story Bible</span>
+        </a>
         <a href="{{ url_for('characters.list_view') }}"
            class="{{ 'active' if active_nav == 'characters' else '' }}">
           <span class="nav-icon">♛</span><span>Characters</span>
@@ -64,6 +110,22 @@
         <a href="{{ url_for('characters.compare') }}"
            class="{{ 'active' if active_nav == 'characters_compare' else '' }}">
           <span class="nav-icon">⇄</span><span>Compare Characters</span>
+        </a>
+        <a href="{{ url_for('voice.index') }}"
+           class="{{ 'active' if active_nav == 'voice' else '' }}">
+          <span class="nav-icon">🗣</span><span>Voice Profiles</span>
+        </a>
+        <a href="{{ url_for('character_arcs.index') }}"
+           class="{{ 'active' if active_nav == 'character_arcs' else '' }}">
+          <span class="nav-icon">🎭</span><span>Character Arcs</span>
+        </a>
+        <a href="{{ url_for('rel_timeline.index') }}"
+           class="{{ 'active' if active_nav == 'rel_timeline' else '' }}">
+          <span class="nav-icon">🕸</span><span>Relationship Timeline</span>
+        </a>
+        <a href="{{ url_for('char_mood.index') }}"
+           class="{{ 'active' if active_nav == 'char_mood' else '' }}">
+          <span class="nav-icon">😊</span><span>Mood Tracker</span>
         </a>
 
         <div class="sidebar-section-label">Planning</div>
@@ -83,6 +145,14 @@
            class="{{ 'active' if active_nav == 'plans_timeline' else '' }}">
           <span class="nav-icon">⌗</span><span>Timeline</span>
         </a>
+        <a href="{{ url_for('timeline_check.index') }}"
+           class="{{ 'active' if active_nav == 'timeline_check' else '' }}">
+          <span class="nav-icon">🕐</span><span>Timeline Audit</span>
+        </a>
+        <a href="{{ url_for('plot_templates.index') }}"
+           class="{{ 'active' if active_nav == 'plot_templates' else '' }}">
+          <span class="nav-icon">🎭</span><span>Plot Structures</span>
+        </a>
 
         <div class="sidebar-section-label">World</div>
         <a href="{{ url_for('world.index') }}"
@@ -97,30 +167,130 @@
            class="{{ 'active' if active_nav == 'world_map' else '' }}">
           <span class="nav-icon">⛨</span><span>World Map</span>
         </a>
+        <a href="{{ url_for('references.index') }}"
+           class="{{ 'active' if active_nav == 'references' else '' }}">
+          <span class="nav-icon">📚</span><span>Research & Refs</span>
+        </a>
 
         <div class="sidebar-section-label">System</div>
         <a href="{{ url_for('chapters.import_center') }}"
            class="{{ 'active' if active_nav == 'import' else '' }}">
           <span class="nav-icon">↥</span><span>Import Center</span>
         </a>
+        <a href="{{ url_for('snapshot_diff.index') }}"
+           class="{{ 'active' if active_nav == 'snapshot_diff' else '' }}">
+          <span class="nav-icon">📖</span><span>Manuscript Diff</span>
+        </a>
+        <a href="{{ url_for('find_replace.index') }}"
+           class="{{ 'active' if active_nav == 'find_replace' else '' }}">
+          <span class="nav-icon">🔁</span><span>Find & Replace</span>
+        </a>
+        <a href="{{ url_for('snippets.index') }}"
+           class="{{ 'active' if active_nav == 'snippets' else '' }}">
+          <span class="nav-icon">📝</span><span>Snippets & Templates</span>
+        </a>
+        <a href="{{ url_for('inspiration.index') }}"
+           class="{{ 'active' if active_nav == 'inspiration' else '' }}">
+          <span class="nav-icon">✨</span><span>Inspiration Hub</span>
+        </a>
+        <a href="{{ url_for('prompt_calendar.index') }}"
+           class="{{ 'active' if active_nav == 'prompt_calendar' else '' }}">
+          <span class="nav-icon">📅</span><span>Prompt Calendar</span>
+        </a>
+        <a href="{{ url_for('notes.index') }}"
+           class="{{ 'active' if active_nav == 'notes' else '' }}">
+          <span class="nav-icon">📥</span><span>Notes & Ideas</span>
+        </a>
         <a href="{{ url_for('lint.index') }}"
            class="{{ 'active' if active_nav == 'lint' else '' }}">
           <span class="nav-icon">🔍</span><span>Story Lint</span>
+        </a>
+        <a href="{{ url_for('word_freq.index') }}"
+           class="{{ 'active' if active_nav == 'word_freq' else '' }}">
+          <span class="nav-icon">📊</span><span>Word Frequency</span>
+        </a>
+        <a href="{{ url_for('glossary.index') }}"
+           class="{{ 'active' if active_nav == 'glossary' else '' }}">
+          <span class="nav-icon">📖</span><span>Glossary & Style</span>
+        </a>
+        <a href="{{ url_for('spellcheck.index') }}"
+           class="{{ 'active' if active_nav == 'spellcheck' else '' }}">
+          <span class="nav-icon">🔤</span><span>Spell Check</span>
         </a>
         <a href="{{ url_for('pacing.index') }}"
            class="{{ 'active' if active_nav == 'pacing' else '' }}">
           <span class="nav-icon">📊</span><span>Pacing Analysis</span>
         </a>
+        <a href="{{ url_for('analytics.index') }}"
+           class="{{ 'active' if active_nav == 'analytics' else '' }}">
+          <span class="nav-icon">📈</span><span>Writing Analytics</span>
+        </a>
+        <a href="{{ url_for('forecast.index') }}"
+           class="{{ 'active' if active_nav == 'forecast' else '' }}">
+          <span class="nav-icon">🔮</span><span>Manuscript Forecast</span>
+        </a>
+        <a href="{{ url_for('habits.index') }}"
+           class="{{ 'active' if active_nav == 'habits' else '' }}">
+          <span class="nav-icon">📊</span><span>Writing Habits</span>
+        </a>
         <a href="{{ url_for('export.index') }}"
            class="{{ 'active' if active_nav == 'export' else '' }}">
           <span class="nav-icon">↧</span><span>Export</span>
+        </a>
+        <a href="{{ url_for('compile.index') }}"
+           class="{{ 'active' if active_nav == 'compile' else '' }}">
+          <span class="nav-icon">📕</span><span>Compile Wizard</span>
+        </a>
+        <a href="{{ url_for('scrivener.index') }}"
+           class="{{ 'active' if active_nav == 'scrivener' else '' }}">
+          <span class="nav-icon">📦</span><span>Scrivener Export</span>
+        </a>
+        <a href="{{ url_for('submissions.index') }}"
+           class="{{ 'active' if active_nav == 'submissions' else '' }}">
+          <span class="nav-icon">📤</span><span>Submission Tracker</span>
         </a>
         <a href="{{ url_for('settings.index') }}"
            class="{{ 'active' if active_nav == 'settings' else '' }}">
           <span class="nav-icon">⚙</span><span>Settings</span>
         </a>
+        <a href="{{ url_for('theme.index') }}"
+           class="{{ 'active' if active_nav == 'theme' else '' }}">
+          <span class="nav-icon">🎨</span><span>Theme Editor</span>
+        </a>
+
+        <div class="sidebar-section-label">Writing Tools</div>
+        <a href="{{ url_for('focus_mode.index') }}"
+           class="{{ 'active' if active_nav == 'focus_mode' else '' }}">
+          <span class="nav-icon">🎯</span><span>Focus Mode Pro</span>
+        </a>
+        <a href="{{ url_for('character_generator.index') }}"
+           class="{{ 'active' if active_nav == 'character_generator' else '' }}">
+          <span class="nav-icon">🎲</span><span>Char Generator</span>
+        </a>
+        <a href="{{ url_for('family_tree.index') }}"
+           class="{{ 'active' if active_nav == 'family_tree' else '' }}">
+          <span class="nav-icon">🌳</span><span>Family Tree</span>
+        </a>
+
+        <div class="sidebar-section-label">Publish</div>
+        <a href="{{ url_for('serial_platform.index') }}"
+           class="{{ 'active' if active_nav == 'serial' else '' }}">
+          <span class="nav-icon">📖</span><span>Serial Reader</span>
+        </a>
+        <a href="{{ url_for('interactive_epub.index') }}"
+           class="{{ 'active' if active_nav == 'interactive_epub' else '' }}">
+          <span class="nav-icon">📚</span><span>Interactive EPUB</span>
+        </a>
         {% if settings and settings.get('ai.enabled') %}
         <div class="sidebar-section-label" style="color: var(--accent-hover)">✨ AI Assistant</div>
+        <a href="{{ url_for('ai_copilot.index') }}"
+           class="{{ 'active' if active_nav == 'ai_copilot' else '' }}">
+          <span class="nav-icon">🤖</span><span>AI Copilot</span>
+        </a>
+        <a href="{{ url_for('character_chat.index') }}"
+           class="{{ 'active' if active_nav == 'character_chat' else '' }}">
+          <span class="nav-icon">💬</span><span>Character Chat</span>
+        </a>
         <a href="javascript:void(0)" onclick="openAIChat()">
           <span class="nav-icon">💬</span><span>AI Chat</span>
         </a>
@@ -141,7 +311,9 @@
         {% endif %}
       </nav>
       <div class="sidebar-footer">
-        <span class="footer-text">ASM v4.0 · local</span>
+        <span class="footer-text">ASM v4.1 · local</span>
+        <button class="btn btn-ghost btn-icon btn-sm" title="Keyboard shortcuts (?)"
+                onclick="openShortcutsModal()">?</button>
         <button class="btn btn-ghost btn-icon btn-sm" title="Toggle theme"
                 onclick="toggleTheme()">◐</button>
       </div>
@@ -208,6 +380,102 @@
   {% if settings and settings.get('ai.enabled') %}
   <script src="{{ url_for('static', filename='js/ai.js') }}"></script>
   {% endif %}
+  <script>
+  // Remember sidebar scroll position across page navigations
+  (function() {
+    const sidebar = document.querySelector(".sidebar-nav");
+    if (!sidebar) return;
+    // Restore saved scroll position
+    const saved = sessionStorage.getItem("asm:sidebar-scroll");
+    if (saved) sidebar.scrollTop = parseInt(saved, 10);
+    // Save on scroll
+    sidebar.addEventListener("scroll", function() {
+      sessionStorage.setItem("asm:sidebar-scroll", this.scrollTop);
+    }, { passive: true });
+  })();
+  // ---- i18n: client-side language switching ----
+  window.ASM_LANG = "{{ ui_lang or 'en' }}";
+  // Load translations from server into global
+  (function() {
+    const lang = window.ASM_LANG;
+    if (lang === "en") return; // English is default, no translation needed
+    // Fetch translations and apply to sidebar
+    fetch("/i18n/api/translations?lang=" + lang)
+      .then(r => r.json())
+      .then(data => {
+        if (!data.ok || !data.translations) return;
+        const tr = data.translations;
+        // Translate sidebar nav items by matching text content
+        const navMap = {
+          "Dashboard": tr["nav.dashboard"],
+          "Books / Series": tr["nav.books"],
+          "Search": tr["nav.search"],
+          "Chapters": tr["nav.chapters"],
+          "Chapter Deps": tr["nav.chapter_deps"],
+          "Reading Mode": tr["nav.reading"],
+          "Scene Cards": tr["nav.scenes"],
+          "Writing Journal": tr["nav.journal"],
+          "Achievements": tr["nav.achievements"],
+          "Milestones": tr["nav.milestones"],
+          "Goals Calendar": tr["nav.goals"],
+          "Session Timer": tr["nav.sessions"],
+          "Music Player": tr["nav.music"],
+          "Story Bible": tr["nav.story_bible"],
+          "Characters": tr["nav.characters"],
+          "Character Groups": tr["nav.character_groups"],
+          "Relationship Graph": tr["nav.relationship_graph"],
+          "Compare Characters": tr["nav.compare_characters"],
+          "Voice Profiles": tr["nav.voice"],
+          "Character Arcs": tr["nav.character_arcs"],
+          "Relationship Timeline": tr["nav.rel_timeline"],
+          "Mood Tracker": tr["nav.mood"],
+          "Kanban Board": tr["nav.plans"],
+          "Corkboard": tr["nav.corkboard"],
+          "Outline": tr["nav.outline"],
+          "Timeline": tr["nav.timeline"],
+          "Timeline Audit": tr["nav.timeline_audit"],
+          "Plot Structures": tr["nav.plot_structures"],
+          "World Library": tr["nav.world"],
+          "Location Tree": tr["nav.location_tree"],
+          "World Map": tr["nav.world_map"],
+          "Research & Refs": tr["nav.references"],
+          "Import Center": tr["nav.import_center"],
+          "Manuscript Diff": tr["nav.manuscript_diff"],
+          "Find & Replace": tr["nav.find_replace"],
+          "Snippets & Templates": tr["nav.snippets"],
+          "Inspiration Hub": tr["nav.inspiration"],
+          "Prompt Calendar": tr["nav.prompt_calendar"],
+          "Notes & Ideas": tr["nav.notes"],
+          "Story Lint": tr["nav.lint"],
+          "Glossary & Style": tr["nav.glossary"],
+          "Spell Check": tr["nav.spellcheck"],
+          "Pacing Analysis": tr["nav.pacing"],
+          "Writing Analytics": tr["nav.analytics"],
+          "Forecast": tr["nav.forecast"],
+          "Writing Habits": tr["nav.habits"],
+          "Export": tr["nav.export"],
+          "Compile Wizard": tr["nav.compile"],
+          "Scrivener Export": tr["nav.scrivener"],
+          "Submission Tracker": tr["nav.submissions"],
+          "Settings": tr["nav.settings"],
+          "Workspace": tr["nav.workspace"],
+          "Story": tr["nav.story"],
+          "Planning": tr["nav.planning"],
+          "World": tr["nav.world_section"],
+          "System": tr["nav.system"],
+        };
+        // Apply to sidebar nav links
+        document.querySelectorAll(".sidebar-nav span:last-child, .sidebar-section-label").forEach(el => {
+          const text = el.textContent.trim();
+          if (navMap[text]) el.textContent = navMap[text];
+        });
+        // Apply to topbar
+        const searchInput = document.querySelector('input[name="q"]');
+        if (searchInput && tr["action.search"]) searchInput.placeholder = tr["action.search"];
+      })
+      .catch(err => console.warn("i18n load failed:", err));
+  })();
+  </script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

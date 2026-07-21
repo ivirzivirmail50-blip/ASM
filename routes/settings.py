@@ -46,7 +46,14 @@ def save():
                         pass
                 elif k == "ai.enabled":
                     Setting.set(s, "ai.enabled", bool(v in (True, "true", "1", "on")))
+                elif k == "ui_language":
+                    from services.i18n_service import set_language, SUPPORTED_LANGUAGES
+                    lang = str(v) if v else "en"
+                    if lang in SUPPORTED_LANGUAGES:
+                        set_language(lang)
                 elif k.startswith("ai."):
+                    if k == "ai.api_key" and (not v or v == "********" or str(v).strip() == ""):
+                        continue  # Don't overwrite existing key with empty/masked value
                     Setting.set(s, k, str(v) if v is not None else "")
                 else:
                     Setting.set(s, k, str(v) if v is not None else "")
@@ -87,6 +94,18 @@ def validate():
 def validate_fix_wc():
     fixed = validate_service.fix_word_counts()
     return jsonify({"ok": True, "fixed": fixed})
+
+
+@bp.route("/validate/rebuild-fts", methods=["POST"])
+def rebuild_fts():
+    """Rebuild the FTS5 full-text search index from scratch."""
+    from models.search import rebuild_fts as _rebuild
+    from core.db import engine
+    success = _rebuild(engine)
+    if success:
+        return jsonify({"ok": True, "message": "FTS5 index rebuilt successfully."})
+    else:
+        return jsonify({"ok": False, "error": "FTS5 rebuild failed. Check logs."}), 500
 
 
 @bp.route("/backup", methods=["GET", "POST"])

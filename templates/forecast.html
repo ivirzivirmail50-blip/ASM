@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Manuscript Forecast{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Forecast</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>🔮 Manuscript Forecast</h1>
+    <div class="subtitle">Predict when you'll finish your manuscript based on your writing pace.</div>
+  </div>
+</div>
+
+<!-- Current progress -->
+<div class="card mb-6" style="background: var(--bg-elev-2)">
+  <div class="flex items-center justify-between mb-3">
+    <div>
+      <div class="card-title">Current Progress</div>
+      <div class="text-sm text-mute">{{ "{:,}".format(forecast.total_words) }} / {{ "{:,}".format(forecast.total_goal) }} words ({{ forecast.completion_pct }}%)</div>
+    </div>
+    <div class="text-right">
+      <div class="text-2xl font-bold" style="color: var(--accent-hover)">{{ "{:,}".format(forecast.words_remaining) }}</div>
+      <div class="text-xs text-mute">words remaining</div>
+    </div>
+  </div>
+  <div class="progress" style="height: 14px">
+    <div class="progress-bar accent" style="width: {{ [forecast.completion_pct, 100] | min }}%"></div>
+  </div>
+</div>
+
+<!-- Pace comparison -->
+<div class="card mb-6">
+  <div class="card-title mb-3">📊 Writing Pace Comparison</div>
+  <div class="table-wrap" style="overflow-x: auto">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Window</th>
+          <th>Total Words</th>
+          <th>Writing Days</th>
+          <th>Avg / Day</th>
+          <th>Avg / Writing Day</th>
+          <th>Days to Complete</th>
+          <th>Est. Completion</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for key, pace in forecast.paces.items() %}
+        <tr>
+          <td><strong>{{ key }}</strong></td>
+          <td>{{ "{:,}".format(pace.total_words) }}</td>
+          <td>{{ pace.writing_days }}</td>
+          <td>{{ pace.avg_per_day }}</td>
+          <td>{{ pace.avg_per_writing_day }}</td>
+          <td>{{ pace.days_to_complete if pace.days_to_complete else '∞' }}</td>
+          <td>
+            {% if pace.est_completion %}
+            <span style="color: var(--accent-hover); font-weight: 600">{{ pace.est_completion }}</span>
+            {% else %}
+            <span class="text-mute">— (no pace)</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        <tr style="background: var(--bg-elev-2)">
+          <td><strong>Daily Goal</strong></td>
+          <td colspan="4">Based on your goal of {{ forecast.daily_goal }} words/day</td>
+          <td>{{ forecast.daily_goal_forecast.days_to_complete if forecast.daily_goal_forecast.days_to_complete else '∞' }}</td>
+          <td>
+            {% if forecast.daily_goal_forecast.est_completion %}
+            <span style="color: var(--success); font-weight: 600">{{ forecast.daily_goal_forecast.est_completion }}</span>
+            {% else %}
+            <span class="text-mute">—</span>
+            {% endif %}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Milestone projections -->
+<div class="card mb-6">
+  <div class="card-title mb-3">🎯 Milestone Projections (at current 30-day pace)</div>
+  <div class="card-grid cols-4">
+    {% for m in forecast.milestones %}
+    <div class="card text-center" style="{{ 'border: 2px solid var(--success)' if m.reaches_goal else '' }}">
+      <div class="card-subtitle">In {{ m.days }} days</div>
+      <div style="font-size: 1.5rem; font-weight: 600; color: {{ 'var(--success)' if m.reaches_goal else 'var(--accent-hover)' }}">
+        {{ m.projected_pct }}%
+      </div>
+      <div class="text-xs text-mute">{{ "{:,}".format(m.projected_words) }} words</div>
+      {% if m.reaches_goal %}<div class="text-xs" style="color: var(--success)">🎉 Reaches goal!</div>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Status indicator -->
+<div class="card" style="border-left: 3px solid {{ 'var(--success)' if forecast.on_track else 'var(--warning)' }}">
+  <div class="card-title mb-2">{{ '✅ On Track' if forecast.on_track else '⚠ Behind Pace' }}</div>
+  {% if forecast.on_track %}
+  <p class="text-sm">You're making great progress! At your current 30-day pace of {{ forecast.paces['30d'].avg_per_day }} words/day,
+  you'll reach your goal of {{ "{:,}".format(forecast.total_goal) }} words around <strong>{{ forecast.paces['30d'].est_completion }}</strong>.</p>
+  {% else %}
+  <p class="text-sm">Your current 30-day pace ({{ forecast.paces['30d'].avg_per_day }} words/day) is below your daily goal of {{ forecast.daily_goal }}.
+  {% if forecast.paces['30d'].est_completion %}
+  At this pace, you'll finish around <strong>{{ forecast.paces['30d'].est_completion }}</strong>.
+  {% else %}
+  Pick up the pace to get an estimated completion date.
+  {% endif %}
+  Consider increasing your daily writing time or frequency.</p>
+  {% endif %}
+</div>
+{% endblock %}

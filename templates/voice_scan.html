@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Dialogue Scan — {{ character.name }}{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('voice.index') }}">Voice Profiles</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('voice.profile', character_id=character.id) }}">{{ character.name }}</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Dialogue Scan</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>🔍 Dialogue Scan — {{ character.name }}</h1>
+    <div class="subtitle">Scanned {{ result.chapters_scanned }} chapter{{ 's' if result.chapters_scanned != 1 else '' }} where {{ character.name }} appears. Found {{ result.dialogue_lines_found }} dialogue line{{ 's' if result.dialogue_lines_found != 1 else '' }}.</div>
+  </div>
+  <a href="{{ url_for('voice.profile', character_id=character.id) }}" class="btn btn-ghost">← Edit Profile</a>
+</div>
+
+<!-- Summary -->
+<div class="card mb-6" style="background: var(--bg-elev-2); border-left: 3px solid var(--accent)">
+  <div class="card-title mb-2">📋 Voice Summary</div>
+  <p class="text-sm" style="line-height: 1.6">{{ summary }}</p>
+</div>
+
+<!-- Stats grid -->
+<div class="card-grid cols-4 mb-6">
+  <div class="card">
+    <div class="card-subtitle">Chapters scanned</div>
+    <div style="font-size: 1.6rem; font-weight: 600">{{ result.chapters_scanned }}</div>
+  </div>
+  <div class="card">
+    <div class="card-subtitle">Dialogue lines</div>
+    <div style="font-size: 1.6rem; font-weight: 600; color: var(--accent-hover)">{{ result.dialogue_lines_found }}</div>
+  </div>
+  <div class="card">
+    <div class="card-subtitle">Avg sentence length</div>
+    <div style="font-size: 1.6rem; font-weight: 600">
+      {{ result.actual_avg_sentence_length }}
+    </div>
+    <div class="text-xs text-mute">
+      Declared: {{ result.declared_sentence_length }} ({{ result.declared_range[0] }}-{{ result.declared_range[1] }})
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-subtitle">Catchphrase hits</div>
+    <div style="font-size: 1.6rem; font-weight: 600; color: var(--success)">{{ result.catchphrase_hits }}</div>
+  </div>
+</div>
+
+<!-- Length consistency warning -->
+{% if result.length_match != "consistent" and result.actual_avg_length != 0 %}
+<div class="card mb-6" style="background: var(--warning-bg, rgba(250,204,21,0.1)); border-left: 3px solid var(--warning)">
+  <div class="text-sm">
+    <strong>⚠ Length mismatch:</strong>
+    {% if result.length_match == "shorter_than_declared" %}
+    {{ character.name }}'s dialogue averages {{ result.actual_avg_sentence_length }} words per sentence, but their profile says they speak in {{ result.declared_sentence_length }} sentences ({{ result.declared_range[0] }}-{{ result.declared_range[1] }} words). They're speaking shorter than declared.
+    {% else %}
+    {{ character.name }}'s dialogue averages {{ result.actual_avg_sentence_length }} words per sentence, but their profile says they speak in {{ result.declared_sentence_length }} sentences ({{ result.declared_range[0] }}-{{ result.declared_range[1] }} words). They're speaking longer than declared.
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Issues -->
+<div class="card mb-6">
+  <div class="card-title mb-3">⚠ Issues ({{ result.issues | length }})</div>
+  {% if result.issues %}
+  <div class="flex flex-col gap-2">
+    {% for issue in result.issues %}
+    <div class="card" style="padding: 0.9rem; border-left: 3px solid var(--danger)">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="badge" style="background: var(--danger); color: white">{{ issue.type | upper }}</span>
+        <span class="badge">{{ issue.chapter_title }}</span>
+        <span style="font-weight: 600">Word:</span>
+        <code style="background: var(--bg-elev-3); padding: 2px 8px; border-radius: 3px; color: var(--danger)">{{ issue.word }}</code>
+      </div>
+      <div class="mt-2 text-sm" style="background: var(--bg-elev-2); padding: 0.5rem 0.75rem; border-radius: 4px; font-family: monospace">
+        "{{ issue.context }}"
+      </div>
+      <a href="{{ url_for('chapters.detail', chapter_id=issue.chapter_id) }}" class="btn btn-sm mt-2">Open chapter →</a>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state" style="padding: 2rem; text-align: center">
+    <div class="text-3xl mb-2">✓</div>
+    <div class="text-sm">
+      {% if result.dialogue_lines_found == 0 %}
+      No dialogue lines found in chapters linked to this character.
+      {% else %}
+      No issues found! {{ character.name }}'s dialogue is consistent with their voice profile.
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Dialogue sample -->
+{% if result.dialogue_sample %}
+<div class="card">
+  <div class="card-title mb-3">💬 Dialogue Sample (first 10 lines)</div>
+  <div class="flex flex-col gap-2">
+    {% for d in result.dialogue_sample %}
+    <div class="card" style="padding: 0.9rem; background: var(--bg-elev-2)">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="badge">{{ d.chapter_title }}</span>
+        <span class="text-xs text-mute">{{ d.word_count }} words · {{ d.sentence_count }} sentence{{ 's' if d.sentence_count != 1 else '' }} · avg {{ d.avg_sentence_length }}w</span>
+      </div>
+      <p style="font-style: italic; line-height: 1.6">"{{ d.text }}"</p>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

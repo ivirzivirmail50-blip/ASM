@@ -19,6 +19,39 @@
   </div>
 </div>
 
+<!-- Quick Capture widget -->
+<div class="card mb-6" style="border-left: 3px solid var(--accent)">
+  <div class="flex items-center gap-2 mb-2">
+    <span class="text-xl">⚡</span>
+    <div class="card-title">Quick Capture</div>
+    <span class="text-xs text-mute">— jot down an idea, start a chapter, or log your day in seconds</span>
+  </div>
+  <div class="card-grid cols-4 mb-2">
+    <label style="cursor: pointer; padding: 0.5rem; border: 2px solid var(--accent); border-radius: 6px; text-align: center; font-size: 0.85rem">
+      <input type="radio" name="qc_type" value="note" checked style="display: none">
+      💡 Note
+    </label>
+    <label style="cursor: pointer; padding: 0.5rem; border: 2px solid var(--border); border-radius: 6px; text-align: center; font-size: 0.85rem">
+      <input type="radio" name="qc_type" value="chapter" style="display: none">
+      📝 Chapter
+    </label>
+    <label style="cursor: pointer; padding: 0.5rem; border: 2px solid var(--border); border-radius: 6px; text-align: center; font-size: 0.85rem">
+      <input type="radio" name="qc_type" value="journal" style="display: none">
+      📔 Journal
+    </label>
+    <label style="cursor: pointer; padding: 0.5rem; border: 2px solid var(--border); border-radius: 6px; text-align: center; font-size: 0.85rem">
+      <input type="radio" name="qc_type" value="snippet" style="display: none">
+      ✂ Snippet
+    </label>
+  </div>
+  <input type="text" id="qc_title" class="form-input mb-2" placeholder="Title (optional)">
+  <textarea id="qc_body" class="form-textarea" rows="2" placeholder="Type your thought here and press Ctrl+Enter to capture…"></textarea>
+  <div class="flex justify-end gap-2 mt-2">
+    <span class="text-xs text-mute self-center" id="qc_hint">Ctrl+Enter to capture</span>
+    <button class="btn btn-primary btn-sm" onclick="quickCapture()">⚡ Capture</button>
+  </div>
+</div>
+
 <!-- Stats grid -->
 <div class="card-grid cols-4 mb-6">
   <div class="card">
@@ -97,7 +130,42 @@
   </div>
   <div class="card" style="grid-column: span 2">
     <div class="card-title mb-3">Word Count — Last 30 Days</div>
-    <canvas id="wordHistoryChart" height="80"></canvas>
+    <canvas id="wordHistoryChart" style="max-height: 200px"></canvas>
+  </div>
+</div>
+
+
+<!-- Session Writing Targets -->
+<div class="card">
+  <div class="card-title mb-3">🎯 Session Targets</div>
+  <div class="card-grid cols-3">
+    <div class="text-center" style="background: var(--bg-elev-2); border-radius: 8px; padding: 1rem">
+      <div style="font-size: 1.5rem; font-weight: 600; color: var(--accent-hover)">{{ stats.words_today }}</div>
+      <div class="text-mute text-xs">Today</div>
+      <div class="text-xs text-mute">/ {{ settings.get('daily_word_goal', 500) }} goal</div>
+      <div class="progress mt-1" style="height: 4px">
+        <div class="progress-bar accent" style="width: {{ [((stats.words_today / (settings.get('daily_word_goal', 500) or 1)) * 100)|int, 100]|min }}%"></div>
+      </div>
+    </div>
+    <div class="text-center" style="background: var(--bg-elev-2); border-radius: 8px; padding: 1rem">
+      <div style="font-size: 1.5rem; font-weight: 600; color: var(--success)">{{ stats.words_this_week }}</div>
+      <div class="text-mute text-xs">This Week</div>
+      <div class="text-xs text-mute">/ {{ (settings.get('daily_word_goal', 500) * 7)|int }} goal</div>
+      <div class="progress mt-1" style="height: 4px">
+        <div class="progress-bar success" style="width: {{ [((stats.words_this_week / ((settings.get('daily_word_goal', 500) * 7) or 1)) * 100)|int, 100]|min }}%"></div>
+      </div>
+    </div>
+    <div class="text-center" style="background: var(--bg-elev-2); border-radius: 8px; padding: 1rem">
+      <div style="font-size: 1.5rem; font-weight: 600; color: var(--warning)">{{ stats.streak }}</div>
+      <div class="text-mute text-xs">Day Streak 🔥</div>
+      <div class="text-xs text-mute">Best: {{ stats.streak }}d</div>
+      <div class="progress mt-1" style="height: 4px">
+        <div class="progress-bar warm" style="width: {{ [((stats.streak / 30) * 100)|int, 100]|min }}%"></div>
+      </div>
+    </div>
+  </div>
+  <div class="flex gap-2 mt-3 justify-center">
+    <a href="{{ url_for('chapters.new') }}" class="btn btn-sm btn-primary">+ Write Now</a>
   </div>
 </div>
 
@@ -243,5 +311,48 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+<script>
+  // Inject globals for charts.js (which is loaded as static, not Jinja-processed)
+  window.ASM_DAILY_WORDS = {{ stats.words_today }};
+  window.ASM_DAILY_GOAL = {{ settings.get('daily_word_goal', 500) }};
+  window.ASM_DAILY_HISTORY = {{ stats.daily_history | tojson }};
+  window.ASM_ANNUAL_HEATMAP = {{ stats.annual_heatmap | tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/charts.js') }}?v=2"></script>
+<script>
+// Quick Capture widget
+async function quickCapture() {
+  const type = document.querySelector('input[name="qc_type"]:checked').value;
+  const title = document.getElementById("qc_title").value.trim();
+  const body = document.getElementById("qc_body").value.trim();
+  if (!body && !title) { showToast("Enter something to capture", "warning"); return; }
+  const payload = { type, title, body };
+  const { data } = await asmFetch("/quick-capture/api/capture", { method: "POST", body: payload });
+  if (data.ok) {
+    showToast(`✓ Captured as ${data.type}`, "success");
+    document.getElementById("qc_title").value = "";
+    document.getElementById("qc_body").value = "";
+  } else {
+    showToast(data.error || "Failed", "error");
+  }
+}
+
+// Radio button styling
+document.querySelectorAll('input[name="qc_type"]').forEach(r => {
+  r.addEventListener("change", () => {
+    document.querySelectorAll('input[name="qc_type"]').forEach(other => {
+      other.closest("label").style.borderColor = "var(--border)";
+    });
+    r.closest("label").style.borderColor = "var(--accent)";
+  });
+});
+
+// Ctrl+Enter to capture
+document.getElementById("qc_body").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    quickCapture();
+  }
+});
+</script>
 {% endblock %}

@@ -316,3 +316,97 @@ def _check_attribute_consistency(chapters: list, char_names: dict) -> list[dict]
                             "suggestion": f"Check if this is intentional or an error.",
                         })
     return findings
+
+
+def style_coach(chapter_id: str) -> dict:
+    """Combined lint + style analysis for a single chapter.
+
+    Returns per-chapter style report with actionable suggestions.
+    """
+    from core.db import read_session
+    from models.chapter import Chapter
+    with read_session() as s:
+        ch = s.get(Chapter, chapter_id)
+        if not ch:
+            return {"ok": False, "error": "Chapter not found."}
+        content = ch.content or ""
+        if not content.strip():
+            return {"ok": False, "error": "Chapter is empty."}
+
+    findings = []
+    # Run existing lint checks
+    chapter_findings = _check_repeated_words(ch, content)
+    chapter_findings += _check_sentence_length(ch, content)
+    chapter_findings += _check_adverb_overuse(ch, content)
+    chapter_findings += _check_passive_voice(ch, content)
+    chapter_findings += _check_dialogue_tags(ch, content)
+
+    # Additional style metrics
+    words = content.split()
+    word_count = len(words)
+
+    # Dialogue ratio
+    import re
+    dialogue_matches = re.findall(r'"[^"]*"', content)
+    dialogue_words = sum(len(m.split()) for m in dialogue_matches)
+    dialogue_pct = round(dialogue_words / max(word_count, 1) * 100, 1)
+
+    # Average sentence length
+    sentences = [s.strip() for s in re.split(r'[.!?]+', content) if s.strip()]
+    avg_sent_len = round(sum(len(s.split()) for s in sentences) / max(len(sentences), 1), 1)
+
+    # Show-don't-tell indicators (feeling words)
+    telling_words = ["felt", "feeling", "feelings", "felt that", "was angry", "was sad",
+                     "was happy", "was afraid", "was scared", "was excited",
+                     "was nervous", "was confused", "was surprised"]
+    telling_count = sum(content.lower().count(w) for w in telling_words)
+
+    # Sensory words (showing indicators)
+    sensory_words = ["saw", "heard", "smelled", "tasted", "touched", "felt the",
+                     "warmth", "cold", "brightness", "darkness", "echo", "scent",
+                     "flavor", "texture", "rough", "smooth", "bitter", "sweet"]
+    sensory_count = sum(content.lower().count(w) for w in sensory_words)
+
+    # Report
+    style_report = {
+        "ok": True,
+        "chapter_title": ch.title,
+        "word_count": word_count,
+        "dialogue_pct": dialogue_pct,
+        "narration_pct": round(100 - dialogue_pct, 1),
+        "avg_sentence_length": avg_sent_len,
+        "sentence_count": len(sentences),
+        "telling_indicators": telling_count,
+        "sensory_indicators": sensory_count,
+        "show_dont_tell_ratio": round(sensory_count / max(telling_count, 1), 1),
+        "findings": chapter_findings,
+        "suggestions": [],
+    }
+
+    # Generate suggestions
+    if dialogue_pct < 15:
+        style_report["suggestions"].append({
+            "type": "dialogue",
+            "severity": "info",
+            "message": f"Dialogue is only {dialogue_pct}% of the chapter. Consider adding more character interaction."
+        })
+    if dialogue_pct > 70:
+        style_report["suggestions"].append({
+            "type": "dialogue",
+            "severity": "info",
+            "message": f"Dialogue is {dialogue_pct}% — very dialogue-heavy. Add more narration and description."
+        })
+    if avg_sent_len > 25:
+        style_report["suggestions"].append({
+            "type": "pacing",
+            "severity": "info",
+            "message": f"Average sentence length is {avg_sent_len} words. Try shorter sentences for action scenes."
+        })
+    if telling_count > sensory_count and telling_count > 3:
+        style_report["suggestions"].append({
+            "type": "show_dont_tell",
+            "severity": "warning",
+            "message": f"Found {telling_count} 'telling' indicators vs {sensory_count} sensory words. Try 'show, don't tell'."
+        })
+
+    return style_report

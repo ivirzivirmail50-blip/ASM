@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}Music Player{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Music Player</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>🎵 Writing Music Player</h1>
+    <div class="subtitle">Upload and play focus music while you write. {{ tracks | length }} track{{ 's' if tracks|length != 1 else '' }} available.</div>
+  </div>
+  <label class="btn btn-primary" style="cursor: pointer">
+    ↑ Upload Audio
+    <input type="file" accept="audio/*" style="display: none" onchange="uploadTrack(this)">
+  </label>
+</div>
+
+<!-- Audio player (sticky) -->
+<div class="card mb-6" style="position: sticky; top: 0; z-index: 50; background: var(--bg-elev-2); padding: 1rem">
+  <div class="flex items-center gap-3 mb-2">
+    <span id="nowPlayingIcon" style="font-size: 2rem">🎵</span>
+    <div class="flex-1">
+      <div id="nowPlayingTitle" class="text-sm font-semibold">No track selected</div>
+      <div id="nowPlayingTime" class="text-xs text-mute">0:00 / 0:00</div>
+    </div>
+  </div>
+  <audio id="audioPlayer" style="display: none"></audio>
+  <!-- Custom progress bar -->
+  <div class="flex items-center gap-2">
+    <button id="playBtn" class="btn btn-sm btn-primary" onclick="togglePlay()" style="min-width: 36px">▶</button>
+    <div id="progressBarContainer" style="flex: 1; height: 24px; background: var(--bg-elev-3); border-radius: 12px; cursor: pointer; position: relative; overflow: hidden;"
+         onclick="seekTo(event)">
+      <div id="progressBar" style="height: 100%; background: var(--accent); border-radius: 12px; width: 0%; transition: width 0.1s"></div>
+      <div id="progressHandle" style="position: absolute; top: 50%; transform: translate(-50%, -50%); width: 16px; height: 16px; background: white; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,0.3); left: 0%; pointer-events: none"></div>
+    </div>
+    <span id="timeLabel" class="text-xs text-mute" style="min-width: 80px; text-align: right; font-family: monospace">0:00 / 0:00</span>
+  </div>
+</div>
+
+<!-- Track list -->
+<div class="card">
+  <div class="card-title mb-3">📋 Track Library</div>
+  {% if tracks %}
+  <div class="flex flex-col gap-2">
+    {% for t in tracks %}
+    <div class="card" style="padding: 0.75rem; display: flex; align-items: center; gap: 0.75rem">
+      <button class="btn btn-sm btn-primary" onclick="playTrack('{{ t.url }}', '{{ t.filename }}')">▶</button>
+      <div class="flex-1">
+        <div style="font-weight: 600">{{ t.filename }}</div>
+        <div class="text-xs text-mute">{{ t.size_mb }} MB</div>
+      </div>
+      <button class="btn btn-sm btn-ghost text-danger" onclick="deleteTrack('{{ t.filename }}')">×</button>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state" style="padding: 3rem; text-align: center">
+    <div class="text-3xl mb-2">🎵</div>
+    <div class="text-mute text-sm">No tracks yet. Upload MP3, OGG, WAV, M4A, or FLAC files.</div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const audioPlayer = document.getElementById("audioPlayer");
+const playBtn = document.getElementById("playBtn");
+const progressBar = document.getElementById("progressBar");
+const progressHandle = document.getElementById("progressHandle");
+const timeLabel = document.getElementById("timeLabel");
+
+function formatTime(sec) {
+  if (isNaN(sec) || sec === 0) return "0:00";
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+
+function playTrack(url, title) {
+  audioPlayer.src = url;
+  audioPlayer.play();
+  document.getElementById("nowPlayingTitle").textContent = title;
+  document.getElementById("nowPlayingIcon").textContent = "🎶";
+  playBtn.textContent = "⏸";
+}
+
+function togglePlay() {
+  if (!audioPlayer.src) { showToast("Select a track first", "warning"); return; }
+  if (audioPlayer.paused) {
+    audioPlayer.play();
+    playBtn.textContent = "⏸";
+  } else {
+    audioPlayer.pause();
+    playBtn.textContent = "▶";
+  }
+}
+
+function seekTo(event) {
+  if (!audioPlayer.duration || isNaN(audioPlayer.duration)) return;
+  const rect = document.getElementById("progressBarContainer").getBoundingClientRect();
+  const pct = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+  audioPlayer.currentTime = pct * audioPlayer.duration;
+  // Update immediately for responsiveness
+  progressBar.style.width = (pct * 100) + "%";
+  progressHandle.style.left = (pct * 100) + "%";
+  timeLabel.textContent = `${formatTime(pct * audioPlayer.duration)} / ${formatTime(audioPlayer.duration)}`;
+}
+
+audioPlayer.addEventListener("timeupdate", () => {
+  if (!audioPlayer.duration) return;
+  const pct = (audioPlayer.currentTime / audioPlayer.duration) * 100;
+  progressBar.style.width = pct + "%";
+  progressHandle.style.left = pct + "%";
+  timeLabel.textContent = `${formatTime(audioPlayer.currentTime)} / ${formatTime(audioPlayer.duration)}`;
+});
+
+audioPlayer.addEventListener("ended", () => {
+  playBtn.textContent = "▶";
+  progressBar.style.width = "0%";
+  progressHandle.style.left = "0%";
+});
+
+audioPlayer.addEventListener("loadedmetadata", () => {
+  timeLabel.textContent = `0:00 / ${formatTime(audioPlayer.duration)}`;
+});
+
+async function uploadTrack(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append("file", file);
+  showToast("Uploading…", "info", 1500);
+  const res = await fetch("/music/api/upload", {
+    method: "POST",
+    headers: { "X-CSRFToken": getCsrfToken() },
+    body: fd,
+  });
+  const data = await res.json();
+  if (data.ok) { showToast("Uploaded!", "success"); setTimeout(() => location.reload(), 500); }
+  else { showToast(data.error || "Failed", "error"); }
+}
+
+async function deleteTrack(filename) {
+  const ok = await confirmDialog(`Delete "${filename}"?`, { danger: true, okLabel: "Delete" });
+  if (!ok) return;
+  const { data } = await asmFetch(`/music/api/${filename}/delete`, { method: "POST" });
+  if (data.ok) { showToast("Deleted", "success"); setTimeout(() => location.reload(), 500); }
+  else { showToast(data.error || "Failed", "error"); }
+}
+</script>
+{% endblock %}

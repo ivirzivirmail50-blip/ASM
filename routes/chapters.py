@@ -58,8 +58,25 @@ def new():
     # GET: render form
     from services import character_service
     characters = character_service.list_characters()
+    prompt = request.args.get("prompt", "")
+    template_id = request.args.get("template", "")
+    prefill_content = ""
+    prefill_synopsis = ""
+    if template_id:
+        try:
+            from services.snippet_service import get_snippet
+            t = get_snippet(template_id)
+            prefill_content = t.content or ""
+        except Exception:
+            pass
+    elif prompt:
+        # Insert the prompt as a quoted epigraph at the top of the chapter
+        prefill_content = f"> {prompt}\n\n"
+        prefill_synopsis = prompt[:200]
     return render_template("chapters/new.html", characters=characters,
-                           active_nav="chapters")
+                           active_nav="chapters",
+                           prefill_content=prefill_content,
+                           prefill_synopsis=prefill_synopsis)
 
 
 @bp.route("/upload", methods=["GET", "POST"])
@@ -446,3 +463,45 @@ def chapter_service_get_export(chapter_id, fmt):
 def import_center():
     """Dedicated import center page."""
     return render_template("import_center.html", active_nav="import")
+
+
+# ---- Editorial Checklist ----
+
+@bp.route("/<chapter_id>/checklist")
+def get_checklist(chapter_id: str):
+    """Get editorial checklist for a chapter."""
+    from services import checklist_service
+    items = checklist_service.get_checklist(chapter_id)
+    progress = checklist_service.get_progress(chapter_id)
+    return jsonify({
+        "ok": True,
+        "items": [{"id": i.id, "text": i.item_text, "checked": i.is_checked,
+                   "category": i.category, "sort_order": i.sort_order} for i in items],
+        "progress": progress,
+    })
+
+
+@bp.route("/<chapter_id>/checklist/add", methods=["POST"])
+def checklist_add(chapter_id: str):
+    from services import checklist_service
+    data = request.get_json(silent=True) or {}
+    try:
+        item = checklist_service.add_item(chapter_id, data.get("text", ""),
+                                           data.get("category", "general"))
+        return jsonify({"ok": True, "id": item.id})
+    except AsmError as exc:
+        return jsonify({"ok": False, "error": exc.user_message}), exc.status_code
+
+
+@bp.route("/checklist/<item_id>/toggle", methods=["POST"])
+def checklist_toggle(item_id: str):
+    from services import checklist_service
+    new_state = checklist_service.toggle_item(item_id)
+    return jsonify({"ok": True, "checked": new_state})
+
+
+@bp.route("/checklist/<item_id>/delete", methods=["POST"])
+def checklist_delete(item_id: str):
+    from services import checklist_service
+    checklist_service.delete_item(item_id)
+    return jsonify({"ok": True})

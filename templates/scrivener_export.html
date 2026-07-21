@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Scrivener Export{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('export.index') }}">Export</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Scrivener</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>📦 Export to Scrivener</h1>
+    <div class="subtitle">Generate a .scriv-compatible ZIP package that can be imported into Scrivener.</div>
+  </div>
+</div>
+
+<div class="card mb-6">
+  <div class="card-title mb-3">Export Options</div>
+  <div class="flex flex-col gap-2 mb-4">
+    <label class="flex items-center gap-2 text-sm">
+      <input type="checkbox" id="inc_synopsis" checked>
+      Include chapter synopses (as Scrivener synopsis metadata)
+    </label>
+    <label class="flex items-center gap-2 text-sm">
+      <input type="checkbox" id="inc_tags" checked>
+      Include chapter tags (as Scrivener keywords)
+    </label>
+  </div>
+  <div class="form-row mb-4">
+    <label class="form-label">Chapter status filter</label>
+    <select id="status_filter" class="form-select" style="width: auto">
+      <option value="all">All chapters</option>
+      <option value="draft">Draft only</option>
+      <option value="revised">Revised only</option>
+      <option value="final">Final only</option>
+    </select>
+  </div>
+  <div class="flex justify-end">
+    <button class="btn btn-primary" onclick="downloadScriv()">⬇ Download .scriv Package</button>
+  </div>
+</div>
+
+<div class="card" style="background: var(--bg-elev-2)">
+  <div class="card-title mb-2">ℹ About Scrivener Export</div>
+  <p class="text-sm" style="line-height: 1.6">
+    This generates a ZIP file containing a <code>.scriv</code> folder structure compatible with Scrivener's
+    import format. Each chapter becomes a <code>.scrtext</code> file with metadata headers (title, synopsis, keywords, status, word count).
+    A <code>binder.xml</code> file defines the project structure (Draft folder with chapter documents).
+  </p>
+  <p class="text-sm mt-2" style="line-height: 1.6">
+    <strong>To import into Scrivener:</strong> Unzip the downloaded file, then in Scrivener use
+    <em>File → Import → Import…</em> and select the <code>.scriv</code> folder.
+    The chapter structure and metadata will be preserved.
+  </p>
+  <p class="text-xs text-mute mt-2">
+    Note: This is a simplified export. Complex Scrivener features (compile settings, snapshots, research folders) are not included.
+  </p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function downloadScriv() {
+  const synopsis = document.getElementById("inc_synopsis").checked ? "1" : "0";
+  const tags = document.getElementById("inc_tags").checked ? "1" : "0";
+  const status = document.getElementById("status_filter").value;
+  showToast("Generating .scriv package…", "info", 1500);
+  setTimeout(() => {
+    window.location.href = `/scrivener/download?synopsis=${synopsis}&tags=${tags}&status=${status}`;
+  }, 200);
+}
+</script>
+{% endblock %}

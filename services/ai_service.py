@@ -18,31 +18,55 @@ from typing import Any
 import requests
 
 from core.db import read_session, write_transaction
+from core.cache import cache
 from core.errors import AiDisabledError, AiProviderError
 from models.settings import Setting
 from services._common import log_activity, new_uuid
 
 log = logging.getLogger("asm.ai")
 
+
+_THINK_BLOCK_RE = __import__("re").compile(r'<think(?:ing)?>.*?</think(?:ing)?>', __import__("re").DOTALL | __import__("re").IGNORECASE)
+_THINK_UNCLOSED_RE = __import__("re").compile(r'<think(?:ing)?>.*$', __import__("re").DOTALL | __import__("re").IGNORECASE)
+_THINK_TAG_RE = __import__("re").compile(r'</?think(?:ing)?>', __import__("re").IGNORECASE)
+
+
+def _clean_thinking(text: str) -> str:
+    """Remove <think>...</think> blocks from reasoning models.
+
+    Handles: <think>, <thinking>, unclosed blocks, dangling close tags.
+    NEVER falls back to raw text — returns empty string if nothing remains.
+    """
+    if not text:
+        return ""
+    # Remove complete <think>...</think> (and <thinking>...</thinking>) blocks
+    text = _THINK_BLOCK_RE.sub('', text)
+    # Remove any unclosed thinking block at the end (model still thinking / no close tag)
+    text = _THINK_UNCLOSED_RE.sub('', text)
+    # Remove any leftover dangling open/close tags (e.g. stray </think> from streaming)
+    text = _THINK_TAG_RE.sub('', text)
+    return text.strip()
+
 # Rate limit: 30 requests per 60 seconds (sliding window)
 _RATE_LIMIT = 30
 _RATE_WINDOW = 60  # seconds
 _request_times: deque = deque()
+_rate_lock = __import__("threading").Lock()
 
 
 def _check_rate_limit() -> None:
     """Raise AiProviderError if rate limit exceeded."""
-    now = time.time()
-    # Drop entries older than window
-    while _request_times and _request_times[0] < now - _RATE_WINDOW:
-        _request_times.popleft()
-    if len(_request_times) >= _RATE_LIMIT:
-        from core.errors import AsmError
-        raise AsmError(
-            f"Rate limit exceeded ({_RATE_LIMIT} requests/{_RATE_WINDOW}s). Please wait.",
-            code="rate_limited", status_code=429,
-        )
-    _request_times.append(now)
+    with _rate_lock:
+        now = time.time()
+        while _request_times and _request_times[0] < now - _RATE_WINDOW:
+            _request_times.popleft()
+        if len(_request_times) >= _RATE_LIMIT:
+            from core.errors import AsmError
+            raise AsmError(
+                f"Rate limit exceeded ({_RATE_LIMIT} requests/{_RATE_WINDOW}s). Please wait.",
+                code="rate_limited", status_code=429,
+            )
+        _request_times.append(now)
 
 
 def is_enabled(session=None) -> bool:
@@ -80,8 +104,20 @@ def generate(prompt: str, *, max_tokens: int = 600,
         raise AiProviderError("No AI model configured.")
     _check_rate_limit()
     if cfg["provider"] == "ollama":
-        return _call_ollama(cfg, prompt, max_tokens, temperature)
-    return _call_openai_compat(cfg, prompt, max_tokens, temperature)
+        raw = _call_ollama(cfg, prompt, max_tokens, temperature)
+    else:
+        raw = _call_openai_compat(cfg, prompt, max_tokens, temperature)
+    cleaned = _clean_thinking(raw)
+    if not cleaned:
+        # Model returned only thinking/reasoning, no actual answer
+        # Return the raw text with thinking tags stripped as best-effort
+        # but also log a warning
+        log.warning("AI response was empty after cleaning thinking tags. Raw length: %d", len(raw or ""))
+        # Try a more aggressive clean: just remove the tags themselves
+        cleaned = _THINK_TAG_RE.sub('', raw or "").strip()
+        if not cleaned:
+            raise AiProviderError("The AI model returned only reasoning/thinking text with no final answer. Try a non-reasoning model or increase max_tokens.")
+    return cleaned
 
 
 def generate_streaming(prompt: str, *, max_tokens: int = 600,
@@ -130,7 +166,7 @@ def _stream_ollama(cfg, prompt: str, max_tokens: int, temperature: float):
                 chunk = json.loads(line)
                 text = chunk.get("response", "")
                 if text:
-                    yield (text, False)
+                    yield (_clean_thinking(text), False)
                 if chunk.get("done"):
                     yield ("", True)
                     return
@@ -177,7 +213,7 @@ def _stream_openai_compat(cfg, prompt: str, max_tokens: int,
                 delta = chunk.get("choices", [{}])[0].get("delta", {})
                 text = delta.get("content", "")
                 if text:
-                    yield (text, False)
+                    yield (_clean_thinking(text), False)
             except (json.JSONDecodeError, ValueError, IndexError):
                 continue
         yield ("", True)
@@ -256,13 +292,13 @@ def _log_ai_action(action: str, entity_id: str | None = None,
         log.warning("Failed to log AI action: %s", exc)
 
 
-def continue_writing(chapter_tail: str, *, max_tokens: int = 400,
+def continue_writing(chapter_tail: str | None, *, max_tokens: int = 400,
                      entity_id: str | None = None) -> str:
     """Suggest the next paragraph(s) given the end of a chapter."""
     prompt = (
         "Continue the following story text in the same style and tone. "
         "Return only the continuation, no preamble.\n\n"
-        f"...{chapter_tail[-1000:]}"
+        f"...{(chapter_tail or "")[-1000:]}"
     )
     result = generate(prompt, max_tokens=max_tokens, temperature=0.8)
     _log_ai_action("continue_writing", entity_id=entity_id,
@@ -376,13 +412,21 @@ def suggest_synopsis(text: str, *, max_tokens: int = 120,
 
 def generate_name(culture: str = "fantasy", kind: str = "character",
                   *, max_tokens: int = 30) -> list[str]:
+    """Generate names with caching — same culture+kind returns cached result for 5 min."""
+    cache_key = f"ai:name_gen:{culture}:{kind}"
+    cached_names = cache.get(cache_key)
+    if cached_names is not None:
+        return cached_names
     prompt = (
         f"Suggest 5 {culture}-style names for a {kind}. "
         "Return only the names, one per line."
     )
     out = generate(prompt, max_tokens=max_tokens, temperature=0.9)
-    names = [n.strip() for n in out.splitlines() if n.strip()][:5]
+    # Clean each line and filter empty
+    names = [n.strip() for n in out.splitlines() if n.strip() and not n.strip().startswith('<')][:5]
     _log_ai_action("generate_name", details={"culture": culture, "kind": kind})
+    if names:
+        cache.set(cache_key, names, ttl_seconds=300)  # 5 min cache
     return names
 
 
@@ -473,7 +517,7 @@ def consistency_check(chapter_texts: list[dict],
     import json
     import re as _re
     # Try to extract a JSON array from the response
-    match = _re.search(r'\[.*\]', out, _re.DOTALL)
+    match = _re.search(r'\[.*\]', out or "", _re.DOTALL)
     if match:
         try:
             findings = json.loads(match.group(0))

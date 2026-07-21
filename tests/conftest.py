@@ -59,6 +59,13 @@ def fresh_db(tmp_path, monkeypatch):
         for k, v in DEFAULT_SETTINGS.items():
             s.add(Setting(key=k, value=v))
 
+    # Clear in-memory cache so cached analytics don't leak between tests
+    try:
+        from core.cache import cache
+        cache.clear()
+    except Exception:
+        pass
+
     yield
 
     test_SessionLocal.remove()

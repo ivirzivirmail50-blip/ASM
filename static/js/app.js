@@ -254,7 +254,158 @@ document.addEventListener("keydown", (e) => {
       window.location.href = editLink.href;
     }
   }
+  // "?" — open keyboard shortcuts cheatsheet
+  if (e.key === "?" && !isTyping) {
+    e.preventDefault();
+    openShortcutsModal();
+    return;
+  }
+  // "t" — toggle theme (when not typing)
+  if (e.key.toLowerCase() === "t" && !isTyping && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    e.preventDefault();
+    toggleTheme();
+    return;
+  }
+  // "b" — toggle sidebar (when not typing)
+  if (e.key.toLowerCase() === "b" && !isTyping && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    e.preventDefault();
+    toggleSidebar();
+    return;
+  }
+  // "g" chord — navigation prefix (when not typing)
+  if (e.key.toLowerCase() === "g" && !isTyping && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    e.preventDefault();
+    _awaitChord();
+    return;
+  }
 });
+
+// ---- "g" chord navigation: press g, then a second key ----
+function _awaitChord() {
+  const hint = document.createElement("div");
+  hint.id = "chordHint";
+  hint.style.cssText = "position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--bg-elev-2);border:1px solid var(--accent);padding:0.5rem 1rem;border-radius:6px;z-index:9999;font-size:0.9rem;box-shadow:0 4px 12px rgba(0,0,0,0.3)";
+  hint.innerHTML = "Press <kbd>g</kbd> + key… <span style='color:var(--text-mute);font-size:0.8em'>d=dashboard c=chapters k=characters p=plans w=world s=search n=notes i=inspiration e=export x=settings</span>";
+  document.body.appendChild(hint);
+
+  function cleanup() {
+    hint.remove();
+    document.removeEventListener("keydown", onChord, true);
+  }
+  function onChord(ev) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    cleanup();
+    const k = ev.key.toLowerCase();
+    const map = {
+      d: "/dashboard/",     // dashboard
+      c: "/chapters/",      // chapters
+      k: "/characters/",    // characters
+      p: "/plans/board",    // plans / kanban
+      w: "/world/",         // world
+      s: "/search/",        // search
+      n: "/notes/",         // notes
+      i: "/inspiration/",   // inspiration
+      t: "/plot-templates/",// plot structures
+      e: "/export/",        // export
+      x: "/settings/",      // settings
+      "?": "/inspiration/", // also accepts ? for inspiration
+    };
+    if (map[k]) window.location.href = map[k];
+  }
+  document.addEventListener("keydown", onChord, true);
+  // Auto-cancel after 1.5s
+  setTimeout(() => { if (document.getElementById("chordHint")) cleanup(); }, 1500);
+}
+
+// ---- Keyboard shortcuts cheatsheet modal ----
+function openShortcutsModal() {
+  const groups = [
+    {
+      title: "Global",
+      icon: "🌐",
+      shortcuts: [
+        { keys: "Ctrl/⌘ + P", desc: "Quick Switch (jump to anything)" },
+        { keys: "/",          desc: "Focus search box" },
+        { keys: "?",          desc: "Open this shortcuts cheatsheet" },
+        { keys: "Esc",        desc: "Close modal / exit distraction-free" },
+        { keys: "F11",        desc: "Toggle distraction-free mode" },
+        { keys: "t",          desc: "Toggle dark/light theme" },
+        { keys: "b",          desc: "Toggle sidebar collapse" },
+      ],
+    },
+    {
+      title: "Navigation (press g, then a letter)",
+      icon: "🧭",
+      shortcuts: [
+        { keys: "g  d", desc: "Go to Dashboard" },
+        { keys: "g  c", desc: "Go to Chapters" },
+        { keys: "g  k", desc: "Go to Characters" },
+        { keys: "g  p", desc: "Go to Plans / Kanban" },
+        { keys: "g  w", desc: "Go to World Library" },
+        { keys: "g  s", desc: "Go to Search" },
+        { keys: "g  n", desc: "Go to Notes & Ideas" },
+        { keys: "g  i", desc: "Go to Inspiration Hub" },
+        { keys: "g  t", desc: "Go to Plot Structures" },
+        { keys: "g  e", desc: "Go to Export" },
+        { keys: "g  x", desc: "Go to Settings" },
+      ],
+    },
+    {
+      title: "Creating new items",
+      icon: "✚",
+      shortcuts: [
+        { keys: "Ctrl/⌘ + N",       desc: "New chapter" },
+        { keys: "Ctrl/⌘ + Shift + N", desc: "New character" },
+      ],
+    },
+    {
+      title: "Editing & saving",
+      icon: "✎",
+      shortcuts: [
+        { keys: "Ctrl/⌘ + S",       desc: "Save (works in editor & forms)" },
+        { keys: "Ctrl/⌘ + Z",       desc: "Undo (persistent undo stack)" },
+        { keys: "Ctrl/⌘ + Shift + Z", desc: "Redo" },
+        { keys: "Ctrl/⌘ + E",       desc: "Open edit page (on detail pages)" },
+      ],
+    },
+  ];
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h3 class="modal-title">⌨ Keyboard Shortcuts</h3>
+      </div>
+      <div class="modal-body" style="max-height:70vh;overflow-y:auto">
+        ${groups.map(g => `
+          <div style="margin-bottom: 1.25rem">
+            <div style="font-weight:600;margin-bottom:0.5rem;color:var(--accent)">${g.icon} ${g.title}</div>
+            <table style="width:100%;border-collapse:collapse">
+              ${g.shortcuts.map(s => `
+                <tr>
+                  <td style="padding:0.35rem 0;width:40%">
+                    <kbd style="background:var(--bg-elev-3);border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-family:monospace;font-size:0.85rem">${escapeHtml(s.keys)}</kbd>
+                  </td>
+                  <td style="padding:0.35rem 0;color:var(--text)">${escapeHtml(s.desc)}</td>
+                </tr>
+              `).join("")}
+            </table>
+          </div>
+        `).join("")}
+        <div style="margin-top:1rem;padding:0.75rem;background:var(--bg-elev-2);border-radius:6px;font-size:0.85rem;color:var(--text-mute)">
+          Tip: most single-key shortcuts (like <kbd>t</kbd>, <kbd>b</kbd>, <kbd>?</kbd>) are disabled while you're typing in an input or textarea.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" data-act="close">Close</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  backdrop.querySelector('[data-act="close"]').onclick = () => backdrop.remove();
+  backdrop.addEventListener("click", (ev) => { if (ev.target === backdrop) backdrop.remove(); });
+}
 
 // ---- Confirmation modal ----
 function confirmDialog(message, opts = {}) {
@@ -665,7 +816,7 @@ async function sendAIChatMessage() {
     });
     hideAILoading();
     if (data.ok) {
-      const response = data.response;
+      const response = data.response || "(The model returned an empty response. Try again or use a non-reasoning model.)";
       _aiChatHistory.push({ role: "assistant", content: response });
       if (container) {
         container.innerHTML += `<div class="ai-chat-msg assistant"><div class="font-serif">${escapeHtml(response)}</div></div>`;

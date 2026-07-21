@@ -1,11 +1,11 @@
 /* character relationship graph using vis-network
    - Loads nodes/edges from /characters/graph/data
    - Drag nodes → save position
-   - Click node → navigate to character detail
-   - Click edge → show relationship details popup with delete
-   - Filter pills → show only specific relationship types
-   - Click legend group → highlight members, dim others
-   - Add relationship mode: click 2 nodes → modal → save
+   - Click node → open character detail (or group popup for groups)
+   - Click edge → show relationship details popup (draggable, smart-positioned)
+   - Filter pills → show only specific types
+   - Click legend group → highlight members
+   - Add relationship mode: click 2 nodes (characters OR groups) → modal → save
 */
 (function () {
   let network = null;
@@ -109,7 +109,7 @@
       });
     });
 
-    showToast("Graph loaded.", "info", 1500);
+    showToast("Graph loaded.", "info", 2500);
   }
 
   function applyFilter() {
@@ -140,8 +140,13 @@
     if (params.nodes.length > 0) {
       const nodeId = params.nodes[0];
       const node = allNodes.find(n => n.id === nodeId);
-      if (node && !node.group) {
-        window.location.href = `/characters/${nodeId}`;
+      if (node) {
+        if (node.group) {
+          // Show group info popup instead of navigating
+          showGroupPopup(nodeId, params.pointer.DOM);
+        } else {
+          window.location.href = `/characters/${nodeId}`;
+        }
       }
     } else {
       hidePopup();
@@ -151,7 +156,11 @@
   function handleDragEnd(params) {
     if (params.nodes.length === 0) return;
     const nodeId = params.nodes[0];
-    if (String(nodeId).startsWith("g-")) return;  // skip group nodes
+    if (String(nodeId).startsWith("g-")) return;  // skip group nodes (but group IDs don't have g- prefix in graph_data)
+    // Actually group IDs in graph_data are the raw group IDs (not prefixed)
+    // So check if it's a group node by looking it up
+    const node = allNodes.find(n => n.id === nodeId);
+    if (node && node.group) return;
     const pos = network.getPositions([nodeId])[nodeId];
     if (!pos) return;
     // Save position
@@ -159,18 +168,53 @@
       method: "POST",
       body: { id: nodeId, x: Math.round(pos.x), y: Math.round(pos.y) }
     }).then(({ data }) => {
-      if (data.ok) showToast("Position saved.", "success", 1200);
+      if (data.ok) showToast("Position saved.", "success", 2000);
     });
   }
 
   function buildPopup() {
     popup = document.createElement("div");
-    popup.className = "card";
+    popup.className = "card graph-popup";
     popup.style.cssText = `
-      position: absolute; display: none; z-index: 30; min-width: 240px;
+      position: fixed; display: none; z-index: 1000; min-width: 260px; max-width: 360px;
       box-shadow: var(--shadow-lg); border: 1px solid var(--border-strong);
+      background: var(--bg-elev-1); border-radius: 8px;
     `;
-    container.parentNode.appendChild(popup);
+    document.body.appendChild(popup);
+
+    // Make popup draggable via header
+    let isDragging = false;
+    let dragOffsetX = 0, dragOffsetY = 0;
+    popup.addEventListener("mousedown", (e) => {
+      // Only drag from header area
+      const header = e.target.closest(".modal-header");
+      if (!header) return;
+      isDragging = true;
+      const rect = popup.getBoundingClientRect();
+      dragOffsetX = e.clientX - rect.left;
+      dragOffsetY = e.clientY - rect.top;
+      popup.style.transition = "none";
+      e.preventDefault();
+    });
+    document.addEventListener("mousemove", (e) => {
+      if (!isDragging) return;
+      let x = e.clientX - dragOffsetX;
+      let y = e.clientY - dragOffsetY;
+      // Keep popup within viewport
+      const pw = popup.offsetWidth;
+      const ph = popup.offsetHeight;
+      x = Math.max(8, Math.min(window.innerWidth - pw - 8, x));
+      y = Math.max(8, Math.min(window.innerHeight - ph - 8, y));
+      popup.style.left = `${x}px`;
+      popup.style.top = `${y}px`;
+    });
+    document.addEventListener("mouseup", () => {
+      if (isDragging) {
+        isDragging = false;
+        popup.style.transition = "";
+      }
+    });
+
     // Click outside to close
     document.addEventListener("click", (e) => {
       if (popup && popup.style.display !== "none" &&
@@ -178,6 +222,33 @@
         hidePopup();
       }
     });
+    // Escape to close
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && popup && popup.style.display !== "none") {
+        hidePopup();
+      }
+    });
+  }
+
+  function positionPopup(domPos) {
+    const popupWidth = 280; // estimated
+    const popupHeight = 200; // estimated
+    const containerRect = container.getBoundingClientRect();
+    let x = containerRect.left + domPos.x + 16;
+    let y = containerRect.top + domPos.y + 16;
+    // If popup would go off right edge, place it to the left
+    if (x + popupWidth > window.innerWidth - 16) {
+      x = containerRect.left + domPos.x - popupWidth - 16;
+    }
+    // If popup would go off bottom edge, place it above
+    if (y + popupHeight > window.innerHeight - 16) {
+      y = containerRect.top + domPos.y - popupHeight - 16;
+    }
+    // Ensure minimum margins
+    x = Math.max(16, x);
+    y = Math.max(16, y);
+    popup.style.left = `${x}px`;
+    popup.style.top = `${y}px`;
   }
 
   function showEdgePopup(edgeId, domPos) {
@@ -185,23 +256,47 @@
     if (!edge) return;
     popupEdgeId = edgeId;
     const isGroup = String(edgeId).startsWith("g2g-") || String(edgeId).startsWith("g2m-");
+    const fromNode = allNodes.find(n => n.id === edge.from);
+    const toNode = allNodes.find(n => n.id === edge.to);
+    const fromLabel = fromNode ? fromNode.label : edge.from;
+    const toLabel = toNode ? toNode.label : edge.to;
     popup.innerHTML = `
-      <div class="modal-header">
-        <h3 class="modal-title">${escapeHtml(edge.label || "Relationship")}</h3>
+      <div class="modal-header" style="cursor: move; user-select: none; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border)">
+        <h3 class="modal-title" style="font-size: 1rem">${escapeHtml(edge.label || "Relationship")}</h3>
         <button class="btn btn-ghost btn-icon btn-sm" onclick="hidePopup()">×</button>
       </div>
-      <div class="modal-body">
-        <div class="text-sm text-dim mb-2">${escapeHtml(edge.title || "")}</div>
-        ${isGroup ? '<div class="text-xs text-mute">Group-level link (no delete)</div>' : `
-        <div class="flex gap-2">
+      <div class="modal-body" style="padding: 0.75rem 1rem">
+        <div class="text-sm mb-2">
+          <strong>${escapeHtml(fromLabel)}</strong>
+          <span class="text-mute">→</span>
+          <strong>${escapeHtml(toLabel)}</strong>
+        </div>
+        ${edge.title ? `<div class="text-sm text-mute mb-2">${escapeHtml(edge.title)}</div>` : ''}
+        ${isGroup ? '<div class="text-xs text-mute">Group-level link (auto-generated)</div>' : `
+        <div class="flex gap-2 mt-2">
           <button class="btn btn-danger btn-sm" onclick="deleteEdge('${edgeId}')">Delete</button>
         </div>`}
       </div>
     `;
-    const rect = container.getBoundingClientRect();
-    popup.style.left = `${rect.left + domPos.x + 12}px`;
-    popup.style.top = `${rect.top + domPos.y + 12}px`;
     popup.style.display = "block";
+    positionPopup(domPos);
+  }
+
+  function showGroupPopup(nodeId, domPos) {
+    const node = allNodes.find(n => n.id === nodeId);
+    if (!node) return;
+    popup.innerHTML = `
+      <div class="modal-header" style="cursor: move; user-select: none; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border)">
+        <h3 class="modal-title" style="font-size: 1rem">${escapeHtml(node.label)} (Group)</h3>
+        <button class="btn btn-ghost btn-icon btn-sm" onclick="hidePopup()">×</button>
+      </div>
+      <div class="modal-body" style="padding: 0.75rem 1rem">
+        ${node.title ? `<div class="text-sm text-mute mb-2">${escapeHtml(node.title)}</div>` : ''}
+        <a class="btn btn-sm btn-primary" href="/characters/groups">Manage Group →</a>
+      </div>
+    `;
+    popup.style.display = "block";
+    positionPopup(domPos);
   }
 
   window.hidePopup = function () {
@@ -218,9 +313,9 @@
       allEdges = allEdges.filter(e => e.id !== edgeId);
       network.body.data.edges.remove(edgeId);
       hidePopup();
-      showToast("Relationship deleted.", "success");
+      showToast("Relationship deleted.", "success", 3000);
     } else {
-      showToast(data.error || "Failed", "error");
+      showToast(data.error || "Failed", "error", 5000);
     }
   };
 
@@ -228,26 +323,24 @@
   window.enterAddMode = function () {
     addMode = true;
     addFirstNode = null;
-    showToast("Click first character…", "info", 0);
+    showToast("Click first node (character or group)…", "info", 4000);
     container.style.cursor = "crosshair";
   };
 
   function handleAddModeClick(params) {
     if (params.nodes.length === 0) {
-      showToast("Click a character node, not empty space.", "warning");
+      showToast("Click a node, not empty space.", "warning", 4000);
       return;
     }
     const nodeId = params.nodes[0];
-    if (String(nodeId).startsWith("g-")) {
-      showToast("Click a character, not a group.", "warning");
-      return;
-    }
+    const node = allNodes.find(n => n.id === nodeId);
+    if (!node) return;
+    const nodeLabel = node.label + (node.group ? " (group)" : "");
     if (!addFirstNode) {
       addFirstNode = nodeId;
-      const n = allNodes.find(x => x.id === nodeId);
-      showToast(`First: ${n ? n.label : nodeId}. Click second character…`, "info", 0);
+      showToast(`First: ${nodeLabel}. Click second node…`, "info", 4000);
     } else if (addFirstNode === nodeId) {
-      showToast("Pick a different second character.", "warning");
+      showToast("Pick a different second node.", "warning", 4000);
     } else {
       const fromId = addFirstNode;
       const toId = nodeId;
@@ -261,6 +354,8 @@
   function openRelationshipModal(fromId, toId) {
     const fromN = allNodes.find(n => n.id === fromId);
     const toN = allNodes.find(n => n.id === toId);
+    const fromLabel = fromN ? (fromN.label + (fromN.group ? " (group)" : "")) : fromId;
+    const toLabel = toN ? (toN.label + (toN.group ? " (group)" : "")) : toId;
     const types = ["married_to","rival_of","parent_of","friend_of","enemy_of",
                    "serves","mentors","loves","betrayed_by","custom"];
     const backdrop = document.createElement("div");
@@ -272,8 +367,8 @@
         </div>
         <div class="modal-body">
           <div class="text-sm text-dim mb-3">
-            From <strong style="color: var(--text)">${escapeHtml(fromN ? fromN.label : fromId)}</strong>
-            to <strong style="color: var(--text)">${escapeHtml(toN ? toN.label : toId)}</strong>
+            From <strong style="color: var(--text)">${escapeHtml(fromLabel)}</strong>
+            to <strong style="color: var(--text)">${escapeHtml(toLabel)}</strong>
           </div>
           <div class="form-row">
             <label class="form-label">Type</label>
@@ -283,7 +378,7 @@
           </div>
           <div class="form-row">
             <label class="form-label">Description (optional)</label>
-            <textarea class="form-textarea" id="relDesc" rows="2" placeholder="e.g., 'married in secret'"></textarea>
+            <textarea class="form-textarea" id="relDesc" rows="2" placeholder="e.g., 'secretly sympathizes with'"></textarea>
           </div>
           <div class="form-row">
             <label class="flex items-center gap-2 text-sm">
@@ -309,10 +404,10 @@
       });
       backdrop.remove();
       if (data.ok) {
-        showToast("Relationship created.", "success");
-        setTimeout(() => location.reload(), 600);
+        showToast("Relationship created.", "success", 3000);
+        setTimeout(() => location.reload(), 800);
       } else {
-        showToast(data.error || "Failed", "error");
+        showToast(data.error || "Failed", "error", 5000);
       }
     };
   }
@@ -320,7 +415,10 @@
   // ---- Group highlight ----
   window.highlightGroup = function (groupId) {
     if (!network) return;
-    // Find members
+    // groupId is the raw group ID from the legend
+    // Node IDs in vis are "g-<groupId>"
+    const groupNodeId = "g-" + groupId;
+    // Find members via g2m edges
     const memberEdgeIds = allEdges
       .filter(e => String(e.id).startsWith(`g2m-${groupId}-`))
       .map(e => e.to);
@@ -328,7 +426,7 @@
     // Dim all, then highlight members + group
     const updates = allNodes.map(n => ({
       id: n.id,
-      opacity: (n.id === groupId || memberIds.has(n.id)) ? 1.0 : 0.18,
+      opacity: (n.id === groupNodeId || memberIds.has(n.id)) ? 1.0 : 0.18,
     }));
     network.body.data.nodes.update(updates);
     // Dim non-member edges
@@ -338,7 +436,7 @@
       return { id: e.id, opacity: keep ? 1.0 : 0.08 };
     });
     network.body.data.edges.update(edgeUpdates);
-    showToast(`Highlighted group.`, "info", 1500);
+    showToast(`Highlighted group. Click anywhere to reset.`, "info", 3000);
     // Click same group again to reset
     setTimeout(() => {
       document.addEventListener("click", function reset() {
@@ -363,12 +461,12 @@
     // Re-enable physics briefly to re-layout
     network.setOptions({ physics: { enabled: true } });
     network.stabilize();
-    showToast("Layout reset.", "info", 1500);
+    showToast("Layout reset.", "info", 2500);
   };
   window.togglePhysics = function () {
     physicsOn = !physicsOn;
     network.setOptions({ physics: { enabled: physicsOn } });
-    showToast(physicsOn ? "Physics resumed." : "Physics paused.", "info", 1200);
+    showToast(physicsOn ? "Physics resumed." : "Physics paused.", "info", 2500);
   };
 
   document.addEventListener("DOMContentLoaded", init);

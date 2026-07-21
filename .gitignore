@@ -3,40 +3,45 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
+.Python
 *.egg-info/
-*.egg
 dist/
 build/
 
-# Virtual environment
+# Virtual env
 .venv/
 venv/
 env/
 
-# IDE / Editor
+# Database
+data/asm.db
+data/asm.db-wal
+data/asm.db-shm
+data/.secret
+
+# Backups & logs
+data/backups/
+data/logs/
+data/exports/
+data/raw/
+
+# Media uploads (user content)
+data/media/maps/
+data/media/music/
+data/media/avatars/
+
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+
+# OS
 .DS_Store
 Thumbs.db
-desktop.ini
 
-# Runtime data (DB, logs, backups, uploads, exports)
-data/
-!data/.gitkeep
-
-# Testing / Coverage
-.coverage
-.coverage.*
-htmlcov/
+# Test cache
 .pytest_cache/
-
-# Environment files (keep .env.example in repo)
-.env
-.env.local
-.env.*.local
-
-# Flask
-instance/
+.coverage
+htmlcov/

@@ -46,9 +46,7 @@ def list_chapters(
 ) -> tuple[list[Chapter], int]:
     """Return (chapters, total_count) for the current project."""
     if per_page is None:
-        # Read from settings
-        from core.db import read_session
-        from models.settings import Setting
+        # Read from settings — note: read_session is already imported at module level
         with read_session() as s:
             per_page = int(Setting.get(s, "chapters_per_page", limits.CHAPTERS_PER_PAGE))
         if not per_page or per_page < 1:

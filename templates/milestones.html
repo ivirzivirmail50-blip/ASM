@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Milestones{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Milestones</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>🏆 Word Count Milestones</h1>
+    <div class="subtitle">Celebrate every writing milestone. Total: {{ "{:,}".format(result.total_words) }} words.</div>
+  </div>
+</div>
+
+<!-- Next milestone -->
+{% if result.next_milestone %}
+<div class="card mb-6" style="background: linear-gradient(135deg, var(--bg-elev-2), var(--bg-elev-3)); border: 1px solid var(--accent)">
+  <div class="flex items-center justify-between mb-3">
+    <div>
+      <div class="text-xs text-mute uppercase tracking-wide">Next Milestone</div>
+      <div class="text-lg font-semibold mt-1">{{ result.next_milestone.icon }} {{ result.next_milestone.name }}</div>
+      <div class="text-sm text-mute">{{ result.next_milestone.desc }}</div>
+    </div>
+    <div class="text-right">
+      <div style="font-size: 2rem; font-weight: 700; color: var(--accent-hover)">{{ result.progress_to_next }}%</div>
+      <div class="text-xs text-mute">{{ "{:,}".format(result.words_to_next) }} words to go</div>
+    </div>
+  </div>
+  <div class="progress" style="height: 14px">
+    <div class="progress-bar accent" style="width: {{ [result.progress_to_next, 100] | min }}%"></div>
+  </div>
+  <div class="text-xs text-mute mt-2">{{ "{:,}".format(result.total_words) }} / {{ "{:,}".format(result.next_milestone.threshold) }} words</div>
+</div>
+{% else %}
+<div class="card mb-6" style="background: linear-gradient(135deg, var(--success), var(--accent)); color: white">
+  <div class="text-center" style="padding: 2rem">
+    <div style="font-size: 3rem">👑</div>
+    <div style="font-size: 1.5rem; font-weight: 700; margin-top: 0.5rem">All milestones reached!</div>
+    <div>You've written {{ "{:,}".format(result.total_words) }} words. Legendary.</div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Newly celebrated (if any) -->
+{% if result.newly_celebrated %}
+<div class="card mb-6" style="border: 2px solid var(--success); animation: pulse 1s">
+  <div class="text-center" style="padding: 2rem">
+    <div style="font-size: 3rem">🎉</div>
+    {% for m in result.newly_celebrated %}
+    <div style="font-size: 1.5rem; font-weight: 700; margin-top: 0.5rem; color: var(--success)">
+      {{ m.icon }} {{ m.name }}!
+    </div>
+    <div class="text-sm mt-1">{{ m.desc }}</div>
+    {% endfor %}
+  </div>
+</div>
+<style>
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+</style>
+{% endif %}
+
+<!-- All milestones -->
+<div class="card">
+  <div class="card-title mb-3">All Milestones</div>
+  <div class="flex flex-col gap-2">
+    {% for m in result.milestones %}
+    <div class="card" style="padding: 1rem; {{ '' if m.reached else 'opacity: 0.5' }}; border-left: 3px solid {{ 'var(--success)' if m.reached else 'var(--border)' }}">
+      <div class="flex items-center gap-3">
+        <span style="font-size: 2rem">{{ m.icon }}</span>
+        <div class="flex-1">
+          <div class="flex items-center gap-2">
+            <strong>{{ m.name }}</strong>
+            <span class="badge">{{ "{:,}".format(m.threshold) }} words</span>
+            {% if m.reached %}
+            <span class="badge" style="background: var(--success); color: white">✓ Reached</span>
+            {% else %}
+            <span class="badge">Locked</span>
+            {% endif %}
+          </div>
+          <div class="text-sm text-mute mt-0.5">{{ m.desc }}</div>
+        </div>
+        {% if not m.reached %}
+        <div style="min-width: 120px">
+          <div class="progress" style="height: 6px">
+            {% set pct = (result.total_words / m.threshold * 100) | int %}
+            <div class="progress-bar accent" style="width: {{ [pct, 100] | min }}%"></div>
+          </div>
+          <div class="text-xs text-mute mt-1 text-right">{{ pct }}%</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

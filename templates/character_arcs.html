@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block title %}Character Arcs{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('characters.list_view') }}">Characters</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Arcs</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>🎭 Character Arc Tracker</h1>
+    <div class="subtitle">Track character development across stages. Link stages to chapters where they occur.</div>
+  </div>
+  <button class="btn btn-primary" onclick="openArcModal()">+ New Arc</button>
+</div>
+
+<!-- Stats -->
+<div class="card-grid cols-5 mb-6">
+  <div class="card text-center">
+    <div class="card-subtitle">Total arcs</div>
+    <div style="font-size: 1.5rem; font-weight: 600">{{ stats.total_arcs }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Completed</div>
+    <div style="font-size: 1.5rem; font-weight: 600; color: var(--success)">{{ stats.completed_arcs }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Active</div>
+    <div style="font-size: 1.5rem; font-weight: 600; color: var(--warning)">{{ stats.active_arcs }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Planned</div>
+    <div style="font-size: 1.5rem; font-weight: 600; color: var(--text-mute)">{{ stats.planned_arcs }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Stages done</div>
+    <div style="font-size: 1.5rem; font-weight: 600">{{ stats.completed_stages }}/{{ stats.total_stages }}</div>
+  </div>
+</div>
+
+<!-- Arcs list -->
+{% if arcs %}
+<div class="flex flex-col gap-4">
+  {% for arc in arcs %}
+  <div class="card" style="border-left: 3px solid {{ 'var(--success)' if arc.overall_status == 'completed' else 'var(--warning)' if arc.overall_status == 'active' else 'var(--border)' }}">
+    <div class="flex items-center justify-between mb-2">
+      <div>
+        <div class="flex items-center gap-2">
+          <a href="{{ url_for('characters.detail', character_id=arc.character_id) }}"><strong>{{ arc.arc_name }}</strong></a>
+          <span class="badge" style="background: {{ 'var(--success)' if arc.overall_status == 'completed' else 'var(--warning)' if arc.overall_status == 'active' else 'var(--bg-elev-3)' }}22; color: {{ 'var(--success)' if arc.overall_status == 'completed' else 'var(--warning)' if arc.overall_status == 'active' else 'var(--text-mute)' }}">{{ arc.overall_status }}</span>
+        </div>
+        {% if arc.description %}<div class="text-sm text-mute mt-0.5">{{ arc.description }}</div>{% endif %}
+      </div>
+      <div class="text-right">
+        <div class="text-sm font-semibold">{{ arc.progress_pct }}%</div>
+        <div class="text-xs text-mute">{{ arc.completed_stages }}/{{ arc.stage_count }} stages</div>
+      </div>
+    </div>
+
+    <!-- Progress bar -->
+    <div class="progress mb-3" style="height: 6px">
+      <div class="progress-bar {{ 'success' if arc.overall_status == 'completed' else 'accent' }}" style="width: {{ arc.progress_pct }}%"></div>
+    </div>
+
+    <!-- Stages -->
+    {% if arc.stages %}
+    <div class="flex flex-col gap-1">
+      {% for stage in arc.stages %}
+      <div class="flex items-center gap-2 p-2" style="background: var(--bg-elev-2); border-radius: 6px">
+        <span style="color: {{ stage_statuses[stage.status].color if stage.status in stage_statuses else 'var(--text-mute)' }}; font-size: 1.2rem">{{ stage_statuses[stage.status].icon if stage.status in stage_statuses else '?' }}</span>
+        <div class="flex-1">
+          <div class="text-sm font-semibold">{{ stage.name }}</div>
+          {% if stage.description %}<div class="text-xs text-mute">{{ stage.description }}</div>{% endif %}
+        </div>
+        <select class="form-select" style="width: auto; font-size: 0.8rem"
+                onchange="updateStage('{{ arc.id }}', {{ loop.index0 }}, this.value)">
+          {% for key, st in stage_statuses.items() %}
+          <option value="{{ key }}" {{ 'selected' if stage.status == key }}>{{ st.icon }} {{ st.label }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn btn-sm btn-ghost text-danger" onclick="deleteStage('{{ arc.id }}', {{ loop.index0 }})">×</button>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="flex gap-2 mt-3 pt-2" style="border-top: 1px solid var(--border)">
+      <button class="btn btn-sm" onclick="addStage('{{ arc.id }}')">+ Add Stage</button>
+      <button class="btn btn-sm btn-ghost text-danger ml-auto" onclick="deleteArc('{{ arc.id }}', {{ arc.arc_name | tojson }})">Delete Arc</button>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card empty-state" style="padding: 3rem; text-align: center">
+  <div class="text-3xl mb-2">🎭</div>
+  <div class="text-mute text-sm">No arcs yet. Create character development arcs to track growth across your story.</div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CHARACTERS = {{ characters | tojson }};
+
+function openArcModal() {
+  if (!CHARACTERS.length) { showToast("Create a character first", "warning"); return; }
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal">
+      <div class="modal-header"><h3 class="modal-title">New Character Arc</h3></div>
+      <div class="modal-body">
+        <div class="form-row">
+          <label class="form-label">Character</label>
+          <select id="arc_char" class="form-select">
+            ${CHARACTERS.map(c => `<option value="${c.id}">${escapeHtml(c.name)} (${c.role})</option>`).join("")}
+          </select>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Arc name</label>
+          <input type="text" id="arc_name" class="form-input" placeholder="e.g. Redemption Arc, Coming of Age">
+        </div>
+        <div class="form-row">
+          <label class="form-label">Description</label>
+          <textarea id="arc_desc" class="form-textarea" rows="2" placeholder="What is this arc about?"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" data-act="cancel">Cancel</button>
+        <button class="btn btn-primary" data-act="ok">Create</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  backdrop.querySelector('[data-act="cancel"]').onclick = () => backdrop.remove();
+  backdrop.querySelector('[data-act="ok"]').onclick = async () => {
+    const payload = {
+      character_id: document.getElementById("arc_char").value,
+      arc_name: document.getElementById("arc_name").value,
+      description: document.getElementById("arc_desc").value,
+    };
+    if (!payload.arc_name) { showToast("Arc name required", "warning"); return; }
+    const { data } = await asmFetch("/character-arcs/api/new", { method: "POST", body: payload });
+    backdrop.remove();
+    if (data.ok) { showToast("Arc created!", "success"); setTimeout(() => location.reload(), 500); }
+    else { showToast(data.error || "Failed", "error"); }
+  };
+}
+
+async function addStage(arcId) {
+  const name = prompt("Stage name:");
+  if (!name) return;
+  const { data } = await asmFetch(`/character-arcs/api/${arcId}/stage`, {
+    method: "POST", body: { name, status: "planned" }
+  });
+  if (data.ok) { showToast("Stage added", "success"); setTimeout(() => location.reload(), 500); }
+}
+
+async function updateStage(arcId, idx, status) {
+  const { data } = await asmFetch(`/character-arcs/api/${arcId}/stage/${idx}`, {
+    method: "POST", body: { status }
+  });
+  if (data.ok) { showToast("Stage updated", "success", 1500); setTimeout(() => location.reload(), 600); }
+}
+
+async function deleteStage(arcId, idx) {
+  const { data } = await asmFetch(`/character-arcs/api/${arcId}/stage/${idx}/delete`, { method: "POST" });
+  if (data.ok) { showToast("Stage removed", "success"); setTimeout(() => location.reload(), 500); }
+}
+
+async function deleteArc(id, name) {
+  const ok = await confirmDialog(`Delete arc "${name}"?`, { danger: true, okLabel: "Delete" });
+  if (!ok) return;
+  const { data } = await asmFetch(`/character-arcs/api/${id}/delete`, { method: "POST" });
+  if (data.ok) { showToast("Deleted", "success"); setTimeout(() => location.reload(), 500); }
+}
+</script>
+{% endblock %}

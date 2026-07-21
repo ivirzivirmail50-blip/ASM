@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+{% block title %}Session Timer{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Session Timer</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>🍅 Writing Session Timer</h1>
+    <div class="subtitle">Focused writing sessions with Pomodoro-style timers. Tracks words written and WPM per session.</div>
+  </div>
+</div>
+
+<!-- Active session / Start form -->
+{% if active_session %}
+<!-- Active session display -->
+<div class="card mb-6" style="border: 2px solid {{ active_session.status_color }}; background: var(--bg-elev-2)">
+  <div class="flex items-center justify-between mb-3">
+    <div>
+      <div class="card-title">{{ active_session.session_type_icon }} {{ active_session.session_type_label }}</div>
+      <div class="text-xs text-mute">Started {{ active_session.started_at[:19] }}</div>
+    </div>
+    <span class="badge" style="background: {{ active_session.status_color }}; color: white">{{ active_session.status_icon }} {{ active_session.status_label }}</span>
+  </div>
+
+  <!-- Timer display -->
+  <div class="text-center" style="padding: 2rem 0">
+    <div id="timerDisplay" style="font-size: 4rem; font-weight: 700; font-family: monospace; color: var(--accent-hover)">
+      {{ '%02d:%02d' % ((active_session.elapsed_seconds // 60), (active_session.elapsed_seconds % 60)) }}
+    </div>
+    <div class="text-sm text-mute mt-1">/ {{ active_session.target_minutes }}:00 target</div>
+  </div>
+
+  <!-- Progress bar -->
+  <div class="progress mb-3" style="height: 8px">
+    {% set pct = (active_session.elapsed_seconds / (active_session.target_minutes * 60) * 100) | int %}
+    <div class="progress-bar accent" style="width: {{ [pct, 100] | min }}%"></div>
+  </div>
+
+  <div class="card-grid cols-3 mb-3">
+    <div class="text-center">
+      <div class="text-xs text-mute">Words this session</div>
+      <div style="font-size: 1.5rem; font-weight: 600; color: var(--success)">{{ active_session.words_written }}</div>
+    </div>
+    <div class="text-center">
+      <div class="text-xs text-mute">WPM</div>
+      <div style="font-size: 1.5rem; font-weight: 600">{{ active_session.wpm }}</div>
+    </div>
+    <div class="text-center">
+      <div class="text-xs text-mute">Paused</div>
+      <div style="font-size: 1.5rem; font-weight: 600; color: var(--warning)">{{ active_session.paused_seconds }}s</div>
+    </div>
+  </div>
+
+  <div class="flex gap-2 justify-center">
+    {% if active_session.status == 'active' %}
+    <button class="btn" onclick="pauseSession('{{ active_session.id }}')">⏸ Pause</button>
+    {% elif active_session.status == 'paused' %}
+    <button class="btn btn-primary" onclick="resumeSession('{{ active_session.id }}')">▶ Resume</button>
+    {% endif %}
+    <button class="btn btn-primary" onclick="endSession('{{ active_session.id }}', 'completed')">✓ Complete</button>
+    <button class="btn btn-ghost text-danger" onclick="endSession('{{ active_session.id }}', 'abandoned')">✕ Abandon</button>
+  </div>
+</div>
+
+{% else %}
+<!-- Start new session -->
+<div class="card mb-6">
+  <div class="card-title mb-3">Start a Writing Session</div>
+  <div class="card-grid cols-4 mb-3">
+    {% for key, st in session_types.items() %}
+    <label style="cursor: pointer; padding: 1rem; border: 2px solid var(--border); border-radius: 8px; text-align: center"
+           onclick="selectType('{{ key }}', {{ st.minutes or 'null' }})">
+      <input type="radio" name="session_type" value="{{ key }}" style="display: none" {{ 'checked' if key == 'pomodoro' }}>
+      <div style="font-size: 2rem">{{ st.icon }}</div>
+      <div style="font-weight: 600; margin-top: 0.3rem; font-size: 0.9rem">{{ st.label }}</div>
+    </label>
+    {% endfor %}
+  </div>
+  <div class="form-row mb-3">
+    <label class="form-label">Custom duration (minutes, overrides preset)</label>
+    <input type="number" id="customMinutes" class="form-input" min="1" max="600" placeholder="Leave empty for preset default">
+  </div>
+  <div class="form-row mb-3">
+    <label class="form-label">Notes (optional)</label>
+    <textarea id="sessionNotes" class="form-textarea" rows="2" placeholder="What are you working on?"></textarea>
+  </div>
+  <div class="flex justify-end">
+    <button class="btn btn-primary" onclick="startSession()">▶ Start Session</button>
+  </div>
+</div>
+{% endif %}
+
+<!-- Stats -->
+<div class="card-grid cols-4 mb-6">
+  <div class="card text-center">
+    <div class="card-subtitle">Sessions (30d)</div>
+    <div style="font-size: 1.5rem; font-weight: 600">{{ stats.total_sessions }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Total minutes</div>
+    <div style="font-size: 1.5rem; font-weight: 600; color: var(--accent-hover)">{{ stats.total_minutes }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Words written</div>
+    <div style="font-size: 1.5rem; font-weight: 600; color: var(--success)">{{ stats.total_words }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Avg WPM</div>
+    <div style="font-size: 1.5rem; font-weight: 600">{{ stats.avg_wpm }}</div>
+  </div>
+</div>
+
+<!-- Past sessions -->
+<div class="card">
+  <div class="card-title mb-3">📋 Past Sessions</div>
+  {% if sessions %}
+  <div class="table-wrap" style="overflow-x: auto; max-height: 400px; overflow-y: auto">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Status</th>
+          <th>Started</th>
+          <th>Duration</th>
+          <th>Words</th>
+          <th>WPM</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in sessions %}
+        <tr>
+          <td>{{ s.session_type_icon }} {{ s.session_type_label }}</td>
+          <td><span class="badge" style="background: {{ s.status_color }}22; color: {{ s.status_color }}">{{ s.status_icon }} {{ s.status_label }}</span></td>
+          <td class="text-xs">{{ s.started_at[:16] if s.started_at else '—' }}</td>
+          <td>{{ '%d:%02d' % ((s.elapsed_seconds // 60), (s.elapsed_seconds % 60)) }}</td>
+          <td>{{ s.words_written }}</td>
+          <td>{{ s.wpm }}</td>
+          <td>
+            {% if s.status in ['active', 'paused'] %}
+            <a href="#top" class="btn btn-sm">Resume</a>
+            {% else %}
+            <button class="btn btn-sm btn-ghost text-danger" onclick="deleteSession('{{ s.id }}')">×</button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state" style="padding: 2rem; text-align: center">
+    <div class="text-mute text-sm">No sessions yet. Start your first focused writing session above.</div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let _selectedType = "pomodoro";
+
+function selectType(key, minutes) {
+  _selectedType = key;
+  document.querySelectorAll('input[name="session_type"]').forEach(r => {
+    r.closest('label').style.borderColor = r.checked ? 'var(--accent)' : 'var(--border)';
+  });
+  event.currentTarget.style.borderColor = 'var(--accent)';
+}
+
+async function startSession() {
+  const customMin = document.getElementById("customMinutes").value;
+  const payload = {
+    session_type: _selectedType,
+    notes: document.getElementById("sessionNotes").value,
+  };
+  if (customMin) payload.target_minutes = parseInt(customMin);
+  const { data } = await asmFetch("/sessions/api/start", { method: "POST", body: payload });
+  if (data.ok) {
+    showToast("Session started! Focus mode on.", "success");
+    setTimeout(() => location.reload(), 600);
+  } else {
+    showToast(data.error || "Failed", "error");
+  }
+}
+
+async function pauseSession(id) {
+  const { data } = await asmFetch(`/sessions/api/${id}/pause`, { method: "POST" });
+  if (data.ok) { showToast("Paused", "info"); setTimeout(() => location.reload(), 500); }
+}
+
+async function resumeSession(id) {
+  const { data } = await asmFetch(`/sessions/api/${id}/resume`, { method: "POST" });
+  if (data.ok) { showToast("Resumed", "success"); setTimeout(() => location.reload(), 500); }
+}
+
+async function endSession(id, status) {
+  const { data } = await asmFetch(`/sessions/api/${id}/end`, { method: "POST", body: { status } });
+  if (data.ok) {
+    const w = data.session.words_written;
+    showToast(`Session ${status}! ${w} words written.`, "success", 3000);
+    setTimeout(() => location.reload(), 1000);
+  } else {
+    showToast(data.error || "Failed", "error");
+  }
+}
+
+async function deleteSession(id) {
+  const ok = await confirmDialog("Delete this session record?", { danger: true, okLabel: "Delete" });
+  if (!ok) return;
+  const { data } = await asmFetch(`/sessions/api/${id}/delete`, { method: "POST" });
+  if (data.ok) { showToast("Deleted", "success"); setTimeout(() => location.reload(), 500); }
+}
+
+// Live timer update for active session
+{% if active_session and active_session.status == 'active' %}
+(function() {
+  // started_at is updated on each resume, so it's the last resume moment
+  const startedAtStr = "{{ active_session.started_at }}";
+  const _startedAt = new Date(startedAtStr.endsWith("Z") || startedAtStr.includes("+") ? startedAtStr : startedAtStr + "Z");
+  // elapsed_seconds contains all accumulated active time BEFORE the current active period
+  const _elapsedBase = {{ active_session.elapsed_seconds or 0 }};
+  const _targetSec = {{ (active_session.target_minutes or 25) * 60 }};
+
+  function updateTimer() {
+    const now = new Date();
+    // Time elapsed since last resume (or start)
+    const elapsedSinceResume = Math.floor((now.getTime() - _startedAt.getTime()) / 1000);
+    // Total active time = accumulated + current period
+    const totalSec = Math.max(0, _elapsedBase + elapsedSinceResume);
+    const min = Math.floor(totalSec / 60);
+    const sec = totalSec % 60;
+    const display = document.getElementById("timerDisplay");
+    if (display) display.textContent = `${String(min).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+    // Update progress bar
+    const bar = document.querySelector(".progress-bar.accent");
+    if (bar && _targetSec > 0) {
+      const pct = Math.min(100, (totalSec / _targetSec) * 100);
+      bar.style.width = pct + "%";
+    }
+  }
+  updateTimer(); // run immediately
+  setInterval(updateTimer, 1000);
+})();
+{% endif %}
+</script>
+{% endblock %}

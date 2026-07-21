@@ -102,8 +102,12 @@ def _fts_search(*, table: str, entity_table: str, columns: tuple[str, ...],
                            for r in rows]
             else:
                 raise RuntimeError("skip to LIKE")
-        except Exception as exc:
-            log.warning("FTS5 search failed, falling back to LIKE: %s", exc)
+        except (RuntimeError, Exception) as exc:
+            err_msg = str(exc).lower()
+            if 'match' in err_msg or 'fts' in err_msg or 'no such table' in err_msg or 'skip to like' in err_msg:
+                log.warning("FTS5 search failed, falling back to LIKE: %s", exc)
+            else:
+                raise
             # LIKE fallback (case-insensitive by default in SQLite)
             if case_sensitive:
                 like_op = "GLOB"

@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ chapter.title }} — Serial Reader</title>
+  <style>
+    body { font-family: Georgia, serif; max-width: 700px; margin: 0 auto; padding: 2rem 1rem; line-height: 1.8; color: #e6e9f5; background: #0b1020; }
+    h1 { text-align: center; margin-bottom: 0.5rem; }
+    .meta { text-align: center; color: #9aa3c7; margin-bottom: 2rem; font-size: 0.9rem; }
+    .content { white-space: pre-wrap; font-size: 1.1rem; }
+    .nav { display: flex; justify-content: space-between; margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #2c365d; }
+    .nav a { color: #6366f1; text-decoration: none; }
+    .home { text-align: center; margin-top: 1rem; }
+    .home a { color: #9aa3c7; text-decoration: none; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <h1>{{ chapter.title }}</h1>
+  <div class="meta">{{ chapter.word_count }} words</div>
+  <div class="content">{{ chapter.content or '(empty chapter)' }}</div>
+  <div class="nav">
+    {% if prev_ch %}<a href="/serial/read/{{ prev_ch.id }}">← {{ prev_ch.title }}</a>{% else %}<span></span>{% endif %}
+    {% if next_ch %}<a href="/serial/read/{{ next_ch.id }}">{{ next_ch.title }} →</a>{% else %}<span></span>{% endif %}
+  </div>
+  <div class="home"><a href="/serial/">↑ All Chapters</a> · <a href="/chapters/{{ chapter.id }}">✎ Edit</a></div>
+</body>
+</html>

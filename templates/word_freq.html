@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% block title %}Word Frequency Analyzer{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Word Frequency</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>📊 Word Frequency Analyzer</h1>
+    <div class="subtitle">Find overused words, repeated phrases, and character mention counts across your manuscript.</div>
+  </div>
+</div>
+
+{% if analysis.total_words == 0 %}
+<div class="card empty-state" style="padding: 3rem; text-align: center">
+  <div class="text-3xl mb-2">📊</div>
+  <div class="text-mute text-sm">No words to analyze. Start writing to see frequency analysis.</div>
+</div>
+{% else %}
+
+<!-- Summary -->
+<div class="card-grid cols-4 mb-6">
+  <div class="card text-center">
+    <div class="card-subtitle">Total words</div>
+    <div style="font-size: 1.5rem; font-weight: 600">{{ "{:,}".format(analysis.total_words) }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Unique words</div>
+    <div style="font-size: 1.5rem; font-weight: 600; color: var(--accent-hover)">{{ "{:,}".format(analysis.unique_words) }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Lexical diversity</div>
+    <div style="font-size: 1.5rem; font-weight: 600">{{ analysis.lexical_diversity }}</div>
+    <div class="text-xs text-mute">higher = richer</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Overuse threshold</div>
+    <div style="font-size: 1.5rem; font-weight: 600; color: var(--warning)">{{ analysis.overuse_threshold }}+</div>
+    <div class="text-xs text-mute">occurrences</div>
+  </div>
+</div>
+
+<!-- Overused words -->
+{% if analysis.overused %}
+<div class="card mb-6" style="border-left: 3px solid var(--warning)">
+  <div class="card-title mb-3">⚠ Overused Words ({{ analysis.overused | length }})</div>
+  <div class="text-xs text-mute mb-2">Words appearing {{ analysis.overuse_threshold }}+ times (excluding common stopwords). Consider varying your vocabulary.</div>
+  <div class="flex gap-1 flex-wrap">
+    {% for w in analysis.overused %}
+    <span class="badge" style="background: var({% if w.pct > 1 %}--danger{% elif w.pct > 0.5 %}--warning{% else %}--bg-elev-3{% endif %})22; color: var({% if w.pct > 1 %}--danger{% elif w.pct > 0.5 %}--warning{% else %}--text{% endif %}); font-size: {{ 0.8 + (w.count / analysis.overused[0].count) * 0.5 }}rem">
+      {{ w.word }} ({{ w.count }}×, {{ w.pct }}%)
+    </span>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Top words + Character mentions -->
+<div class="card-grid cols-2 mb-6">
+  <!-- Top words -->
+  <div class="card">
+    <div class="card-title mb-3">🔝 Top {{ analysis.top_words | length }} Words (stopwords excluded)</div>
+    <div class="flex flex-col gap-1" style="max-height: 400px; overflow-y: auto">
+      {% for w in analysis.top_words %}
+      <div class="flex items-center gap-2 text-sm">
+        <span style="min-width: 28px; text-align: right; color: var(--text-mute)">{{ loop.index }}</span>
+        <code style="background: var(--bg-elev-3); padding: 2px 8px; border-radius: 3px; min-width: 100px">{{ w.word }}</code>
+        <div class="progress" style="height: 6px; flex: 1">
+          {% set pct = (w.count / analysis.top_words[0].count * 100) | int %}
+          <div class="progress-bar accent" style="width: {{ pct }}%"></div>
+        </div>
+        <span style="min-width: 40px; text-align: right; font-weight: 600">{{ w.count }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Character mentions -->
+  <div class="card">
+    <div class="card-title mb-3">👥 Character Mentions</div>
+    {% if analysis.character_mentions %}
+    <div class="flex flex-col gap-1">
+      {% for c in analysis.character_mentions %}
+      <div class="flex items-center gap-2 text-sm">
+        <span class="avatar avatar-sm" style="background: {{ c.avatar_color }}; width: 24px; height: 24px; font-size: 0.7rem">{{ c.name[:1]|upper }}</span>
+        <a href="{{ url_for('characters.detail', character_id=c.id) if c.id else '#' }}" style="min-width: 120px">{{ c.name }}</a>
+        <span class="badge">{{ c.role }}</span>
+        <div class="progress" style="height: 6px; flex: 1">
+          {% set pct = (c.count / analysis.character_mentions[0].count * 100) | int %}
+          <div class="progress-bar warm" style="width: {{ pct }}%"></div>
+        </div>
+        <span style="min-width: 40px; text-align: right; font-weight: 600">{{ c.count }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-mute text-sm">No character names found in the manuscript.</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Repeated phrases -->
+<div class="card-grid cols-2 mb-6">
+  <div class="card">
+    <div class="card-title mb-3">🔁 Repeated 2-Word Phrases (3+ occurrences)</div>
+    {% if analysis.repeated_phrases_2 %}
+    <div class="flex flex-col gap-1">
+      {% for p in analysis.repeated_phrases_2 %}
+      <div class="flex items-center gap-2 text-sm">
+        <code style="background: var(--bg-elev-3); padding: 2px 8px; border-radius: 3px; flex: 1">{{ p.phrase }}</code>
+        <span class="badge">{{ p.count }}×</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-mute text-sm">No significantly repeated phrases.</div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-title mb-3">🔁 Repeated 3-Word Phrases (3+ occurrences)</div>
+    {% if analysis.repeated_phrases_3 %}
+    <div class="flex flex-col gap-1">
+      {% for p in analysis.repeated_phrases_3 %}
+      <div class="flex items-center gap-2 text-sm">
+        <code style="background: var(--bg-elev-3); padding: 2px 8px; border-radius: 3px; flex: 1">{{ p.phrase }}</code>
+        <span class="badge">{{ p.count }}×</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-mute text-sm">No significantly repeated 3-word phrases.</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Per-chapter breakdown -->
+<div class="card">
+  <div class="card-title mb-3">📋 Per-Chapter Breakdown</div>
+  <div class="table-wrap" style="overflow-x: auto">
+    <table class="table">
+      <thead>
+        <tr><th>Chapter</th><th>Words</th><th>Unique</th><th>Diversity</th><th>Top 5 Words</th></tr>
+      </thead>
+      <tbody>
+        {% for c in analysis.per_chapter %}
+        <tr>
+          <td><a href="{{ url_for('chapters.detail', chapter_id=c.chapter_id) }}">{{ c.chapter_title }}</a></td>
+          <td>{{ c.total_words }}</td>
+          <td>{{ c.unique_words }}</td>
+          <td>{{ (c.unique_words / (c.total_words if c.total_words > 0 else 1)) | round(3) }}</td>
+          <td>
+            {% for w in c.top_5 %}
+            <span class="badge">{{ w.word }} ({{ w.count }})</span>
+            {% endfor %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endif %}
+{% endblock %}

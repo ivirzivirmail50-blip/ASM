@@ -103,6 +103,13 @@ def init_db(seed_defaults: bool = True) -> None:
     from models.search import install_fts
     install_fts(engine)
 
+    # Seed default snippets/templates
+    try:
+        from services.snippet_service import seed_default_templates
+        seed_default_templates()
+    except Exception:
+        pass  # snippets table might not exist yet on first run
+
     if seed_defaults:
         _seed_defaults()
 

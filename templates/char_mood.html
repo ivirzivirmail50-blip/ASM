@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block title %}Character Mood Tracker{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('characters.list_view') }}">Characters</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Mood Tracker</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>😊 Character Mood Tracker</h1>
+    <div class="subtitle">Track how each character's emotional state evolves across chapters. {{ timeline.total_moods }} mood entries recorded.</div>
+  </div>
+  <button class="btn btn-primary" onclick="openSetModal()">+ Set Mood</button>
+</div>
+
+<!-- Mood legend -->
+<div class="card mb-6">
+  <div class="card-title mb-2">Mood Legend</div>
+  <div class="flex gap-2 flex-wrap">
+    {% for key, m in moods.items() %}
+    <span class="badge" style="background: {{ m.color }}22; color: {{ m.color }}; border: 1px solid {{ m.color }}44">
+      {{ m.icon }} {{ m.label }}
+    </span>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Mood timeline per character -->
+{% if timeline.characters %}
+<div class="flex flex-col gap-4">
+  {% for char in timeline.characters %}
+  {% set char_moods = timeline.mood_timeline.get(char.id, []) %}
+  <div class="card">
+    <div class="flex items-center gap-2 mb-3">
+      <span class="avatar avatar-sm" style="background: {{ char.avatar_color }}">{{ char.name[:1]|upper }}</span>
+      <strong>{{ char.name }}</strong>
+      <span class="badge">{{ char.role }}</span>
+      <span class="text-xs text-mute">{{ char_moods | length }} mood entries</span>
+    </div>
+
+    {% if char_moods %}
+    <!-- Horizontal mood timeline -->
+    <div class="flex items-center gap-1 overflow-x-auto" style="padding-bottom: 0.5rem">
+      {% for m in char_moods %}
+      <div class="flex flex-col items-center" style="min-width: 80px"
+           title="{{ m.chapter_title }}: {{ m.mood_label }}">
+        <a href="{{ url_for('chapters.detail', chapter_id=m.chapter_id) }}"
+           class="text-xs text-mute" style="text-decoration: none; text-align: center; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">
+          {{ m.chapter_title[:12] }}
+        </a>
+        <span style="font-size: 1.5rem; margin: 0.2rem 0">{{ m.mood_icon }}</span>
+        <span class="badge" style="background: {{ m.mood_color }}22; color: {{ m.mood_color }}; font-size: 0.7rem">{{ m.mood_label }}</span>
+        <span class="text-xs text-mute">{{ m.intensity_label }}</span>
+        {% if m.note %}<span class="text-xs text-mute" style="max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ m.note }}</span>{% endif %}
+        <button class="btn btn-sm btn-ghost text-danger" style="font-size: 0.6rem; padding: 0" onclick="deleteMood('{{ m.id }}')">×</button>
+      </div>
+      {% if not loop.last %}
+      <span style="color: var(--text-mute)">→</span>
+      {% endif %}
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-mute text-sm">No mood entries yet for this character.</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card empty-state" style="padding: 3rem; text-align: center">
+  <div class="text-3xl mb-2">😊</div>
+  <div class="text-mute text-sm">No characters yet. Create characters first to track their moods.</div>
+</div>
+{% endif %}
+
+<!-- Set mood modal -->
+<div id="setModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; padding: 2rem"
+     onclick="if(event.target===this) this.style.display='none'">
+  <div class="modal" style="margin: 2rem auto; background: var(--bg-elev-1); border-radius: 8px; padding: 2rem; max-width: 500px">
+    <div class="modal-header"><h3>Set Character Mood</h3></div>
+    <div class="modal-body" id="setModalBody"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const MOODS = {{ moods | tojson }};
+const INTENSITIES = {{ intensities | tojson }};
+const CHARACTERS = {{ timeline.characters | tojson }};
+const CHAPTERS = {{ timeline.chapters | tojson }};
+
+function openSetModal() {
+  if (!CHARACTERS.length) { showToast("Create characters first", "warning"); return; }
+  if (!CHAPTERS.length) { showToast("Create chapters first", "warning"); return; }
+  const body = document.getElementById("setModalBody");
+  body.innerHTML = `
+    <div class="form-row">
+      <label class="form-label">Character</label>
+      <select id="mood_char" class="form-select">
+        ${CHARACTERS.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("")}
+      </select>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Chapter</label>
+      <select id="mood_ch" class="form-select">
+        ${CHAPTERS.map(c => `<option value="${c.id}">${escapeHtml(c.title)}</option>`).join("")}
+      </select>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Mood</label>
+      <div class="flex gap-1 flex-wrap" id="mood_picker">
+        ${Object.entries(MOODS).map(([k, m]) => `
+          <label style="cursor: pointer; padding: 0.4rem 0.6rem; border: 2px solid var(--border); border-radius: 6px; font-size: 0.85rem">
+            <input type="radio" name="mood_val" value="${k}" style="display: none">
+            ${m.icon} ${m.label}
+          </label>
+        `).join("")}
+      </div>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Intensity</label>
+      <select id="mood_intensity" class="form-select" style="width: auto">
+        ${Object.entries(INTENSITIES).map(([k, i]) => `<option value="${k}">${i.icon} ${i.label}</option>`).join("")}
+      </select>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Note (optional)</label>
+      <textarea id="mood_note" class="form-textarea" rows="2" placeholder="Why is the character feeling this way?"></textarea>
+    </div>
+    <div class="flex justify-end gap-2 mt-3">
+      <button class="btn" onclick="document.getElementById('setModal').style.display='none'">Cancel</button>
+      <button class="btn btn-primary" onclick="saveMood()">Save</button>
+    </div>
+  `;
+  // Style radio selection
+  document.querySelectorAll('#mood_picker label').forEach(l => {
+    l.addEventListener('click', () => {
+      document.querySelectorAll('#mood_picker label').forEach(o => o.style.borderColor = 'var(--border)');
+      l.style.borderColor = 'var(--accent)';
+    });
+  });
+  document.getElementById("setModal").style.display = "block";
+}
+
+async function saveMood() {
+  const mood = document.querySelector('input[name="mood_val"]:checked');
+  if (!mood) { showToast("Select a mood", "warning"); return; }
+  const payload = {
+    character_id: document.getElementById("mood_char").value,
+    chapter_id: document.getElementById("mood_ch").value,
+    mood: mood.value,
+    intensity: document.getElementById("mood_intensity").value,
+    note: document.getElementById("mood_note").value,
+  };
+  const { data } = await asmFetch("/char-mood/api/set", { method: "POST", body: payload });
+  if (data.ok) { showToast("Mood saved!", "success"); document.getElementById("setModal").style.display = "none"; setTimeout(() => location.reload(), 500); }
+  else { showToast(data.error || "Failed", "error"); }
+}
+
+async function deleteMood(id) {
+  const { data } = await asmFetch(`/char-mood/api/${id}/delete`, { method: "POST" });
+  if (data.ok) { showToast("Deleted", "success"); setTimeout(() => location.reload(), 500); }
+}
+</script>
+{% endblock %}

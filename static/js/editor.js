@@ -1,6 +1,6 @@
-/* EasyMDE init helper (loaded alongside editor page) */
-// Loaded by chapters/edit.html; placeholder for any future shared editor logic.
+/* EasyMDE editor helpers — shared across chapter edit pages. */
 window.AsmEditor = {
   instances: new Map(),
-  register(id, mde) { this.instances.set(id, mde); }
+  register(id, mde) { this.instances.set(id, mde); },
+  get(id) { return this.instances.get(id); },
 };

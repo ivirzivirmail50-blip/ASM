@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Character AI Chat{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>💬 Character AI Chat</h1>
+  <div class="subtitle">Talk to your characters as if they were real. Uses their voice profile and background.</div>
+</div>
+<div class="card mb-4">
+  <div class="form-row">
+    <label class="form-label">Select character</label>
+    <select id="charSelect" class="form-select">
+      {% for c in characters %}
+      <option value="{{ c.id }}">{{ c.name }} ({{ c.role }})</option>
+      {% endfor %}
+    </select>
+  </div>
+</div>
+<div class="card mb-4" style="height: 400px; overflow-y: auto;" id="chatBox">
+  <div class="text-mute text-sm" style="text-align: center; padding: 2rem">Select a character and start chatting...</div>
+</div>
+<div class="card">
+  <div class="flex gap-2">
+    <input type="text" id="chatInput" class="form-input" placeholder="Type your message..." style="flex:1">
+    <button class="btn btn-primary" onclick="sendMessage()">Send</button>
+  </div>
+</div>
+<script>
+const chatBox = document.getElementById("chatBox");
+const chatInput = document.getElementById("chatInput");
+
+chatInput.addEventListener("keydown", e => { if (e.key === "Enter") sendMessage(); });
+
+async function sendMessage() {
+  const charId = document.getElementById("charSelect").value;
+  const message = chatInput.value.trim();
+  if (!charId || !message) return;
+
+  chatBox.innerHTML += `<div style="margin: 0.5rem 0; text-align: right;"><span class="badge">You</span><div style="display:inline-block; background: var(--accent); color: white; padding: 0.5rem 1rem; border-radius: 8px; max-width: 70%; margin-left: 0.5rem;">${escapeHtml(message)}</div></div>`;
+  chatInput.value = "";
+  chatBox.scrollTop = chatBox.scrollHeight;
+
+  const { data } = await asmFetch("/character-chat/api/chat", { method: "POST", body: { character_id: charId, message } });
+  if (data.ok) {
+    chatBox.innerHTML += `<div style="margin: 0.5rem 0;"><span class="badge" style="background: var(--success); color:white">${escapeHtml(data.character)}</span><div style="display:inline-block; background: var(--bg-elev-2); padding: 0.5rem 1rem; border-radius: 8px; max-width: 70%; margin-left: 0.5rem;">${escapeHtml(data.response)}</div></div>`;
+  } else {
+    chatBox.innerHTML += `<div class="text-danger text-sm">${escapeHtml(data.error || "Failed")}</div>`;
+  }
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
+</script>
+{% endblock %}

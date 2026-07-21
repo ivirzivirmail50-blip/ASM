@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}Snippets & Templates{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Snippets & Templates</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Snippets & Chapter Templates</h1>
+    <div class="subtitle">Reusable text blocks and starter templates for your chapters</div>
+  </div>
+  <div class="actions">
+    <button class="btn" onclick="openSnippetModal('snippet')">+ New Snippet</button>
+    <button class="btn btn-primary" onclick="openSnippetModal('template')">+ New Template</button>
+  </div>
+</div>
+
+<!-- Chapter Templates -->
+<div class="card mb-6">
+  <div class="card-title mb-3">📋 Chapter Templates</div>
+  <div class="card-grid cols-3">
+    {% for t in templates %}
+    <div class="card" style="cursor: pointer" onclick="useTemplate('{{ t.id }}')">
+      <div style="font-weight: 600">{{ t.name }}</div>
+      <div class="text-xs text-mute mt-1" style="max-height: 3em; overflow: hidden">{{ t.content[:100] }}...</div>
+      <div class="flex gap-1 mt-2">
+        <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); useTemplate('{{ t.id }}')">Use</button>
+        <button class="btn btn-sm" onclick="event.stopPropagation(); editSnippet('{{ t.id }}', {{ t.name|tojson }}, {{ t.content|tojson }})">✎</button>
+        <button class="btn btn-sm btn-ghost text-danger" onclick="event.stopPropagation(); deleteSnippet('{{ t.id }}')">×</button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% if not templates %}
+  <div class="empty-state" style="padding: 1.5rem">
+    <div class="text-mute text-sm">No templates yet. <button class="btn btn-sm btn-link" onclick="seedTemplates()">Load default templates</button></div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- User Snippets -->
+<div class="card">
+  <div class="card-title mb-3">✂️ Custom Snippets</div>
+  <div class="card-grid cols-3">
+    {% for s in snippets %}
+    <div class="card" style="cursor: pointer" onclick="copySnippet('{{ s.id }}')">
+      <div style="font-weight: 600">{{ s.name }}</div>
+      <div class="text-xs text-mute mt-1" style="max-height: 3em; overflow: hidden">{{ s.content[:100] }}...</div>
+      <div class="flex gap-1 mt-2">
+        <button class="btn btn-sm" onclick="event.stopPropagation(); copySnippet('{{ s.id }}')">📋 Copy</button>
+        <button class="btn btn-sm" onclick="event.stopPropagation(); editSnippet('{{ s.id }}', {{ s.name|tojson }}, {{ s.content|tojson }})">✎</button>
+        <button class="btn btn-sm btn-ghost text-danger" onclick="event.stopPropagation(); deleteSnippet('{{ s.id }}')">×</button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% if not snippets %}
+  <div class="text-mute text-sm" style="padding: 1rem">No custom snippets yet. Create reusable text blocks to insert into chapters.</div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function useTemplate(id) {
+  const res = await fetch(`/snippets/${id}/content`);
+  const text = await res.text();
+  // Navigate to new chapter page with content pre-filled
+  window.location.href = `/chapters/new?template=${encodeURIComponent(id)}`;
+}
+
+async function copySnippet(id) {
+  const res = await fetch(`/snippets/${id}/content`);
+  const text = await res.text();
+  navigator.clipboard.writeText(text).then(() => showToast("Copied to clipboard!", "success", 2000));
+}
+
+function openSnippetModal(category) {
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal modal-lg">
+      <div class="modal-header"><h3 class="modal-title">New ${category === 'template' ? 'Template' : 'Snippet'}</h3></div>
+      <div class="modal-body">
+        <div class="form-row">
+          <label class="form-label">Name</label>
+          <input type="text" id="snipName" class="form-input" placeholder="${category === 'template' ? 'Chapter template name' : 'Snippet name'}">
+        </div>
+        <div class="form-row">
+          <label class="form-label">Content (Markdown)</label>
+          <textarea id="snipContent" class="form-textarea" rows="10" placeholder="Enter the text..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" data-act="cancel">Cancel</button>
+        <button class="btn btn-primary" data-act="ok">Save</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  backdrop.querySelector('[data-act="cancel"]').onclick = () => backdrop.remove();
+  backdrop.querySelector('[data-act="ok"]').onclick = async () => {
+    const name = document.getElementById("snipName").value.trim();
+    if (!name) { showToast("Name required.", "warning"); return; }
+    const { data } = await asmFetch("/snippets/new", {
+      method: "POST",
+      body: { name, content: document.getElementById("snipContent").value, category }
+    });
+    backdrop.remove();
+    if (data.ok) { showToast("Saved!", "success"); setTimeout(() => location.reload(), 500); }
+    else { showToast(data.error || "Failed", "error"); }
+  };
+}
+
+function editSnippet(id, name, content) {
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal modal-lg">
+      <div class="modal-header"><h3 class="modal-title">Edit</h3></div>
+      <div class="modal-body">
+        <div class="form-row">
+          <label class="form-label">Name</label>
+          <input type="text" id="editSnipName" class="form-input" value="${escapeHtml(name)}">
+        </div>
+        <div class="form-row">
+          <label class="form-label">Content</label>
+          <textarea id="editSnipContent" class="form-textarea" rows="10">${escapeHtml(content)}</textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" data-act="cancel">Cancel</button>
+        <button class="btn btn-primary" data-act="ok">Save</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  backdrop.querySelector('[data-act="cancel"]').onclick = () => backdrop.remove();
+  backdrop.querySelector('[data-act="ok"]').onclick = async () => {
+    const { data } = await asmFetch(`/snippets/${id}`, {
+      method: "POST",
+      body: { name: document.getElementById("editSnipName").value, content: document.getElementById("editSnipContent").value }
+    });
+    backdrop.remove();
+    if (data.ok) { showToast("Saved!", "success"); setTimeout(() => location.reload(), 500); }
+  };
+}
+
+async function deleteSnippet(id) {
+  const ok = await confirmDialog("Delete this item?", { danger: true, okLabel: "Delete" });
+  if (!ok) return;
+  const { data } = await asmFetch(`/snippets/${id}/delete`, { method: "POST" });
+  if (data.ok) { showToast("Deleted.", "success"); setTimeout(() => location.reload(), 500); }
+}
+
+async function seedTemplates() {
+  const { data } = await asmFetch("/snippets/seed-templates", { method: "POST" });
+  if (data.ok) { showToast("Default templates loaded!", "success"); setTimeout(() => location.reload(), 500); }
+}
+</script>
+{% endblock %}

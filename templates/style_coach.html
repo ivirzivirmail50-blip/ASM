@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Style Coach: {{ result.chapter_title|default("Chapter") }}{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('lint.index') }}">Story Lint</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Style Coach</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>🎭 Style Coach</h1>
+    <div class="subtitle">{{ result.chapter_title|default("Chapter") }} — detailed style analysis</div>
+  </div>
+  <a href="{{ url_for('lint.index') }}" class="btn btn-ghost">← Back to Lint</a>
+</div>
+
+{% if result.ok %}
+<!-- Style metrics -->
+<div class="card-grid cols-4 mb-6">
+  <div class="card text-center">
+    <div style="font-size: 1.5rem; font-weight: 600; color: var(--accent-hover)">{{ result.dialogue_pct }}%</div>
+    <div class="text-mute text-xs">Dialogue</div>
+  </div>
+  <div class="card text-center">
+    <div style="font-size: 1.5rem; font-weight: 600; color: var(--text)">{{ result.avg_sentence_length }}w</div>
+    <div class="text-mute text-xs">Avg Sentence</div>
+  </div>
+  <div class="card text-center">
+    <div style="font-size: 1.5rem; font-weight: 600; color: {{ 'var(--success)' if result.telling_indicators < result.sensory_indicators else 'var(--warning)' }}">{{ result.show_dont_tell_ratio }}</div>
+    <div class="text-mute text-xs">Show/Tell Ratio</div>
+  </div>
+  <div class="card text-center">
+    <div style="font-size: 1.5rem; font-weight: 600">{{ result.word_count }}</div>
+    <div class="text-mute text-xs">Words</div>
+  </div>
+</div>
+
+<!-- Suggestions -->
+{% if result.suggestions %}
+<div class="card mb-6">
+  <div class="card-title mb-3">💡 Style Suggestions</div>
+  <div class="flex flex-col gap-2">
+    {% for s in result.suggestions %}
+    <div class="card" style="border-left: 3px solid {{ 'var(--warning)' if s.severity == 'warning' else 'var(--info)' }}; padding: 0.6rem 1rem">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="badge no-dot {{ 'warning' if s.severity == 'warning' else '' }}" style="font-size: 0.65rem">{{ s.type|replace('_',' ') }}</span>
+      </div>
+      <div class="text-sm" style="color: var(--text)">{{ s.message }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Detailed findings -->
+{% if result.findings %}
+<div class="card">
+  <div class="card-title mb-3">📋 Detailed Findings ({{ result.findings|length }})</div>
+  <div class="flex flex-col gap-2">
+    {% for f in result.findings %}
+    <div class="card" style="border-left: 3px solid {{ 'var(--danger)' if f.severity == 'error' else ('var(--warning)' if f.severity == 'warning' else 'var(--info)') }}; padding: 0.5rem 0.85rem">
+      <span class="badge no-dot {{ 'danger' if f.severity == 'error' else ('warning' if f.severity == 'warning' else '') }}" style="font-size: 0.6rem">{{ f.type|replace('_',' ') }}</span>
+      <span class="text-sm ml-2" style="color: var(--text)">{{ f.message }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">✓</div>
+  <h3>No style issues found</h3>
+  <p>This chapter passes all style checks!</p>
+</div>
+{% endif %}
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">🎭</div>
+  <h3>{{ result.error|default("Could not analyze chapter") }}</h3>
+</div>
+{% endif %}
+{% endblock %}

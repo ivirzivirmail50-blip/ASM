@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block title %}Relationship Timeline{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('characters.list_view') }}">Characters</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Relationship Timeline</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>🕸 Relationship Timeline</h1>
+    <div class="subtitle">Track how character relationships evolve. {{ stats.total }} relationships across {{ matrix.characters | length }} characters.</div>
+  </div>
+  <button class="btn btn-primary" onclick="openAddModal()">+ Add Relationship</button>
+</div>
+
+<!-- Stats -->
+<div class="card-grid cols-3 mb-6">
+  <div class="card text-center">
+    <div class="card-subtitle">Total relationships</div>
+    <div style="font-size: 1.6rem; font-weight: 600">{{ stats.total }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Bidirectional</div>
+    <div style="font-size: 1.6rem; font-weight: 600; color: var(--accent-hover)">{{ stats.bidirectional_count }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Relationship types</div>
+    <div style="font-size: 1.6rem; font-weight: 600">{{ stats.types | length }}</div>
+  </div>
+</div>
+
+<!-- Relationship matrix -->
+{% if matrix.characters and matrix.total_relationships > 0 %}
+<div class="card mb-6">
+  <div class="card-title mb-3">📊 Relationship Matrix</div>
+  <div style="overflow-x: auto">
+    <table class="table" style="font-size: 0.85rem">
+      <thead>
+        <tr>
+          <th></th>
+          {% for c in matrix.characters %}
+          <th style="text-align: center; padding: 4px" title="{{ c.name }}">{{ c.name[:3] }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row_char in matrix.characters %}
+        <tr>
+          <td style="font-weight: 600; white-space: nowrap">
+            <span class="avatar avatar-sm" style="background: {{ row_char.avatar_color }}; width: 20px; height: 20px; font-size: 0.65rem">{{ row_char.name[:1]|upper }}</span>
+            {{ row_char.name[:10] }}
+          </td>
+          {% for col_char in matrix.characters %}
+          <td style="text-align: center; padding: 4px">
+            {% if row_char.id == col_char.id %}
+            <span style="color: var(--text-mute)">—</span>
+            {% elif matrix.matrix[row_char.id][col_char.id] %}
+            <span class="badge" style="font-size: 0.7rem">{{ matrix.matrix[row_char.id][col_char.id] }}</span>
+            {% else %}
+            <span style="color: var(--text-mute)">·</span>
+            {% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- Events list -->
+<div class="card">
+  <div class="card-title mb-3">📋 All Relationships</div>
+  {% if events %}
+  <div class="flex flex-col gap-2">
+    {% for e in events %}
+    <div class="card" style="padding: 0.9rem; display: flex; align-items: center; gap: 0.75rem">
+      <div class="flex items-center gap-2">
+        <span>{{ e.from_name }}</span>
+        <span class="text-mute">{{ '↔' if e.is_bidirectional else '→' }}</span>
+        <span>{{ e.to_name }}</span>
+      </div>
+      <span class="badge" style="background: var(--accent)22; color: var(--accent)">{{ e.relationship_type }}</span>
+      {% if e.description %}
+      <span class="text-xs text-mute" style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ e.description }}</span>
+      {% endif %}
+      <button class="btn btn-sm btn-ghost text-danger" onclick="deleteEvent('{{ e.id }}')">×</button>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state" style="padding: 2rem; text-align: center">
+    <div class="text-mute text-sm">No relationships defined yet. Click "+ Add Relationship" to start.</div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CHARACTERS = {{ characters | tojson }};
+
+function openAddModal() {
+  if (!CHARACTERS.length) { showToast("Create characters first", "warning"); return; }
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal">
+      <div class="modal-header"><h3 class="modal-title">Add Relationship</h3></div>
+      <div class="modal-body">
+        <div class="card-grid cols-2">
+          <div class="form-row">
+            <label class="form-label">From character</label>
+            <select id="rel_from" class="form-select">
+              ${CHARACTERS.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("")}
+            </select>
+          </div>
+          <div class="form-row">
+            <label class="form-label">To character</label>
+            <select id="rel_to" class="form-select">
+              ${CHARACTERS.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("")}
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Relationship type</label>
+          <input type="text" id="rel_type" class="form-input" placeholder="ally / enemy / mentor / lover / sibling / rival…" list="rel_types">
+          <datalist id="rel_types">
+            <option value="ally"><option value="enemy"><option value="mentor">
+            <option value="lover"><option value="sibling"><option value="rival">
+            <option value="friend"><option value="parent"><option value="child">
+            <option value="stranger"><option value="betrayed">
+          </datalist>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Description (optional)</label>
+          <textarea id="rel_desc" class="form-textarea" rows="2" placeholder="What is the nature of this relationship?"></textarea>
+        </div>
+        <div class="form-row">
+          <label class="flex items-center gap-2 text-sm">
+            <input type="checkbox" id="rel_bi" checked>
+            Bidirectional (A is X to B AND B is X to A)
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" data-act="cancel">Cancel</button>
+        <button class="btn btn-primary" data-act="ok">Add</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  backdrop.querySelector('[data-act="cancel"]').onclick = () => backdrop.remove();
+  backdrop.querySelector('[data-act="ok"]').onclick = async () => {
+    const payload = {
+      from_character_id: document.getElementById("rel_from").value,
+      to_character_id: document.getElementById("rel_to").value,
+      relationship_type: document.getElementById("rel_type").value,
+      description: document.getElementById("rel_desc").value,
+      is_bidirectional: document.getElementById("rel_bi").checked,
+    };
+    if (!payload.relationship_type) { showToast("Type required", "warning"); return; }
+    const { data } = await asmFetch("/rel-timeline/api/add", { method: "POST", body: payload });
+    backdrop.remove();
+    if (data.ok) { showToast("Relationship added!", "success"); setTimeout(() => location.reload(), 500); }
+    else { showToast(data.error || "Failed", "error"); }
+  };
+}
+
+async function deleteEvent(id) {
+  const ok = await confirmDialog("Delete this relationship?", { danger: true, okLabel: "Delete" });
+  if (!ok) return;
+  const { data } = await asmFetch(`/rel-timeline/api/${id}/delete`, { method: "POST" });
+  if (data.ok) { showToast("Deleted", "success"); setTimeout(() => location.reload(), 500); }
+}
+</script>
+{% endblock %}

@@ -227,6 +227,10 @@ def graph_data():
         members = character_service.characters_in_group(g.id)
         group_members[g.id] = [m.id for m in members]
 
+    # Build set of valid node IDs (characters + groups)
+    char_ids = {c.id for c in chars}
+    group_ids = {g.id for g in groups}
+
     nodes = []
     for c in chars:
         # Find primary group for color
@@ -246,7 +250,23 @@ def graph_data():
     for r in rels:
         from_id = r.from_character_id
         to_id = r.to_character_id
+        # Check if from/to is a group (stored with g- prefix) or character
+        from_is_group = from_id.startswith("g-") and from_id[2:] in group_ids
+        to_is_group = to_id.startswith("g-") and to_id[2:] in group_ids
+        from_valid = from_id in char_ids or from_is_group
+        to_valid = to_id in char_ids or to_is_group
+        if not from_valid or not to_valid:
+            continue  # skip orphaned relationships
         color = _edge_color(r.relationship_type)
+        # Use display label showing group name if it's a group
+        from_label = ""
+        to_label = ""
+        if from_is_group:
+            g = next((x for x in groups if x.id == from_id[2:]), None)
+            from_label = g.name if g else from_id
+        if to_is_group:
+            g = next((x for x in groups if x.id == to_id[2:]), None)
+            to_label = g.name if g else to_id
         edges.append({
             "id": r.id,
             "from": from_id,
@@ -274,14 +294,14 @@ def graph_data():
             if has_cross:
                 edges.append({
                     "id": f"g2g-{g1.id}-{g2.id}",
-                    "from": g1.id, "to": g2.id,
+                    "from": f"g-{g1.id}", "to": f"g-{g2.id}",
                     "label": "group link", "color": {"color": "#ef4444"},
                     "dashes": True, "width": 1,
                 })
-    # Group nodes
+    # Group nodes — use "g-<id>" as node ID so backend can distinguish groups from characters
     for g in groups:
         nodes.append({
-            "id": g.id,
+            "id": f"g-{g.id}",
             "label": g.name,
             "title": g.description or g.name,
             "color": g.color or "#6366f1",
@@ -294,7 +314,7 @@ def graph_data():
         for m in group_members.get(g.id, []):
             edges.append({
                 "id": f"g2m-{g.id}-{m}",
-                "from": g.id, "to": m,
+                "from": f"g-{g.id}", "to": m,
                 "color": {"color": "#f59e0b"},
                 "dashes": True, "width": 1,
             })

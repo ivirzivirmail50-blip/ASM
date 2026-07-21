@@ -45,11 +45,17 @@
         <option value="ollama" {{ 'selected' if settings.get('ai.provider') == 'ollama' }}>Ollama (local)</option>
         <option value="openai" {{ 'selected' if settings.get('ai.provider') == 'openai' }}>OpenAI-compatible (Groq, OpenRouter, etc.)</option>
       </select>
+      <button type="button" class="btn btn-sm" onclick="autoDetectOllama()" style="margin-top: 0.5rem">🔍 Detect Ollama</button>
     </div>
     <div class="form-row">
       <label class="form-label">Model</label>
-      <input type="text" name="ai.model" value="{{ settings.get('ai.model', '') }}" class="form-input" data-setting
-             placeholder="e.g., llama3, llama-3.3-70b-versatile">
+      <div class="flex gap-2">
+        <input type="text" name="ai.model" id="aiModel" value="{{ settings.get('ai.model', '') }}" class="form-input" data-setting
+               placeholder="e.g., llama3, llama-3.3-70b-versatile" list="modelList">
+        <datalist id="modelList"></datalist>
+        <button type="button" class="btn" onclick="fetchModels()" title="Fetch available models">↻</button>
+      </div>
+      <div class="form-hint" id="modelHint">Click ↻ to fetch available models from your provider.</div>
     </div>
   </div>
   <div class="card-grid cols-2 mb-4">
@@ -60,13 +66,13 @@
       <div class="form-hint" id="apiBaseHint">
         <strong>Ollama:</strong> http://localhost:11434<br>
         <strong>Groq:</strong> https://api.groq.com/openai<br>
-        <strong>OpenRouter:</strong> https://openrouter.ai/api/v1<br>
+        <strong>OpenRouter:</strong> https://openrouter.ai/api<br>
         <strong>OpenAI:</strong> https://api.openai.com
       </div>
     </div>
     <div class="form-row">
       <label class="form-label">API key</label>
-      <input type="password" name="ai.api_key" value="{{ settings.get('ai.api_key', '') }}" class="form-input" data-setting
+      <input type="password" name="ai.api_key" value="" class="form-input" data-setting
              placeholder="{{ '******** (saved, type new to change)' if settings.get('ai.api_key') else 'Enter your API key' }}">
       <div class="form-hint">Key is stored locally, never logged or exported. Leave empty to keep existing key.</div>
     </div>
@@ -194,6 +200,66 @@ async function testAI() {
     showToast(`✓ AI responded: "${data.response.slice(0, 50)}…"`, "success", 4000);
   } else {
     showToast(data.error || "AI test failed", "error", 4000);
+  }
+}
+
+async function fetchModels() {
+  const hint = document.getElementById("modelHint");
+  const datalist = document.getElementById("modelList");
+  hint.textContent = "Fetching models...";
+  hint.style.color = "var(--text-dim)";
+  try {
+    // Save current settings first so the backend has the latest provider/base/key
+    const payload = {};
+    document.querySelectorAll("[data-setting]").forEach(el => {
+      payload[el.getAttribute("name")] = el.value;
+    });
+    if (!payload["ai.api_key"]) delete payload["ai.api_key"];
+    await asmFetch("/settings/save", { method: "POST", body: payload });
+
+    const { data } = await asmFetch("/ai/models", { method: "GET" });
+    if (data.ok && data.models && data.models.length) {
+      datalist.innerHTML = data.models.map(m => `<option value="${m}">`).join("");
+      hint.textContent = `Found ${data.models.length} models. Start typing or click the input to select.`;
+      hint.style.color = "var(--success)";
+      showToast(`Found ${data.models.length} models!`, "success");
+    } else {
+      hint.textContent = data.error || "No models found.";
+      hint.style.color = "var(--danger)";
+    }
+  } catch (err) {
+    hint.textContent = "Failed: " + err.message;
+    hint.style.color = "var(--danger)";
+  }
+}
+
+async function autoDetectOllama() {
+  showToast("Detecting Ollama...", "info", 3000);
+  const { data } = await asmFetch("/ai/auto-detect", { method: "GET" });
+  if (data.ok && data.detected) {
+    // Set provider to ollama and base URL
+    document.getElementById("aiProvider").value = "ollama";
+    document.querySelector('[name="ai.api_base"]').value = data.host;
+    // Populate model datalist
+    const datalist = document.getElementById("modelList");
+    if (datalist) {
+      datalist.innerHTML = data.models.map(m => `<option value="${m}">`).join("");
+    }
+    // Auto-select first recommended model
+    if (data.recommended && data.recommended.length > 0) {
+      document.getElementById("aiModel").value = data.recommended[0];
+    }
+    showToast(`Ollama found at ${data.host}! ${data.models.length} models available.`, "success", 5000);
+    // Show recommended models
+    const hint = document.getElementById("modelHint");
+    if (hint) {
+      hint.innerHTML = `Ollama detected! ${data.models.length} models. Recommended for writing: <strong>${data.recommended.join(", ")}</strong>`;
+      hint.style.color = "var(--success)";
+    }
+  } else if (data.ok && !data.detected) {
+    showToast("Ollama not found. Make sure it's running on localhost:11434", "warning", 5000);
+  } else {
+    showToast(data.error || "Detection failed", "error");
   }
 }
 </script>

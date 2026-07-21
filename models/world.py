@@ -24,6 +24,7 @@ class WorldEntry(Base):
     map_pin_x = Column(Float)
     map_pin_y = Column(Float)
     map_pin_label = Column(String(200))
+    map_pin_color = Column(String(20))  # hex color for the pin
     map_image_path = Column(Text)  # for location background
     sort_order = Column(Integer, default=0, index=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

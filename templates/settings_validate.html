@@ -18,6 +18,7 @@
   </div>
   <div class="actions">
     <button class="btn btn-primary" onclick="fixWordCounts()">↺ Fix Word Counts</button>
+    <button class="btn" onclick="rebuildFTS()">🔍 Rebuild Search Index</button>
   </div>
 </div>
 
@@ -86,6 +87,18 @@ async function fixWordCounts() {
     setTimeout(() => location.reload(), 800);
   } else {
     showToast(data.error || "Failed", "error");
+  }
+}
+
+async function rebuildFTS() {
+  const ok = await confirmDialog("Rebuild the full-text search index? This may take a few seconds.", { okLabel: "Rebuild" });
+  if (!ok) return;
+  showToast("Rebuilding search index...", "info", 0);
+  const { data } = await asmFetch("/settings/validate/rebuild-fts", { method: "POST" });
+  if (data.ok) {
+    showToast("Search index rebuilt successfully!", "success");
+  } else {
+    showToast(data.error || "Rebuild failed", "error");
   }
 }
 </script>

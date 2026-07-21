@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+{% block title %}Reading Mode{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('chapters.list_view') }}">Chapters</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Reading Mode</span>
+{% endblock %}
+
+{% block content %}
+<!-- Reading controls bar (sticky) -->
+<div class="reading-controls" id="readingControls"
+     style="position: sticky; top: 0; z-index: 50; background: var(--bg-elev-1); border-bottom: 1px solid var(--border); padding: 0.5rem 1rem; display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap">
+  <button class="btn btn-sm btn-ghost" onclick="toggleControls()" title="Hide controls (H)">☰</button>
+  <a href="{{ url_for('chapters.list_view') }}" class="btn btn-sm btn-ghost">← Exit</a>
+
+  <div class="flex items-center gap-1">
+    <label class="text-xs text-mute">Font:</label>
+    <select id="fontFamily" class="form-select" style="width: auto; font-size: 0.85rem" onchange="saveReadingPrefs()">
+      <option value="Georgia, 'Times New Roman', serif">Serif (Georgia)</option>
+      <option value="'Lora', Georgia, serif">Lora</option>
+      <option value="Inter, system-ui, sans-serif">Sans (Inter)</option>
+      <option value="'LXGW WenKai', serif">WenKai (handwriting)</option>
+      <option value="monospace">Monospace</option>
+    </select>
+  </div>
+
+  <div class="flex items-center gap-1">
+    <label class="text-xs text-mute">Size:</label>
+    <input type="range" id="fontSize" min="14" max="28" value="18"
+           oninput="updateFontSize(); saveReadingPrefs()" style="width: 100px">
+    <span id="fontSizeLabel" class="text-xs text-mute" style="min-width: 32px">18px</span>
+  </div>
+
+  <div class="flex items-center gap-1">
+    <label class="text-xs text-mute">Line:</label>
+    <input type="range" id="lineHeight" min="120" max="220" value="170"
+           oninput="updateLineHeight(); saveReadingPrefs()" style="width: 80px">
+    <span id="lineHeightLabel" class="text-xs text-mute" style="min-width: 40px">1.7</span>
+  </div>
+
+  <div class="flex items-center gap-1">
+    <label class="text-xs text-mute">Width:</label>
+    <select id="maxWidth" class="form-select" style="width: auto; font-size: 0.85rem" onchange="updateMaxWidth(); saveReadingPrefs()">
+      <option value="600">Narrow (600px)</option>
+      <option value="720" selected>Normal (720px)</option>
+      <option value="900">Wide (900px)</option>
+      <option value="1200">Full (1200px)</option>
+    </select>
+  </div>
+
+  <div class="flex items-center gap-1">
+    <label class="text-xs text-mute">Theme:</label>
+    <select id="readTheme" class="form-select" style="width: auto; font-size: 0.85rem" onchange="applyTheme(); saveReadingPrefs()">
+      <option value="auto" selected>Auto (follow app)</option>
+      <option value="paper">Paper (white)</option>
+      <option value="sepia">Sepia</option>
+      <option value="dark">Dark</option>
+      <option value="night">Night (black)</option>
+    </select>
+  </div>
+
+  <div class="flex items-center gap-2 ml-auto">
+    <label class="text-xs flex items-center gap-1">
+      <input type="checkbox" id="hideTitles" onchange="saveReadingPrefs(); rerender()"> Hide titles
+    </label>
+    <label class="text-xs flex items-center gap-1">
+      <input type="checkbox" id="hideMeta" onchange="saveReadingPrefs(); rerender()"> Hide meta
+    </label>
+    <button class="btn btn-sm btn-ghost" onclick="toggleFullscreen()" title="Fullscreen (F)">⛶</button>
+  </div>
+</div>
+
+<!-- Progress bar -->
+<div class="reading-progress" style="position: sticky; top: 49px; z-index: 49; height: 3px; background: var(--bg-elev-2)">
+  <div id="progressBar" style="height: 100%; width: 0%; background: var(--accent); transition: width 0.1s"></div>
+</div>
+
+<!-- Chapter jump dropdown -->
+<div style="position: sticky; top: 52px; z-index: 48; background: var(--bg-elev-1); padding: 0.4rem 1rem; border-bottom: 1px solid var(--border); display: flex; gap: 0.5rem; align-items: center">
+  <span class="text-xs text-mute">Jump to:</span>
+  <select id="chapterJump" class="form-select" style="width: auto; font-size: 0.85rem" onchange="jumpToChapter(this.value)">
+    {% for c in chapters %}
+    <option value="{{ c.id }}">{{ loop.index }}. {{ c.title }}</option>
+    {% endfor %}
+  </select>
+  <span class="text-xs text-mute ml-auto" id="readingStats">{{ total }} chapters · ~{{ total }} min read</span>
+</div>
+
+<!-- Reader viewport -->
+<div id="readerViewport" style="padding: 2rem 1rem 8rem">
+  <div id="readerContent" style="margin: 0 auto; max-width: 720px; font-family: Georgia, serif; font-size: 18px; line-height: 1.7; color: var(--text)">
+    <div class="text-mute text-sm" style="text-align: center; padding: 4rem 1rem">
+      Loading manuscript…
+    </div>
+  </div>
+</div>
+
+<!-- Floating chapter nav -->
+<div style="position: fixed; bottom: 1.5rem; right: 1.5rem; display: flex; gap: 0.5rem; z-index: 50">
+  <button class="btn btn-ghost" onclick="scrollToPrevChapter()" title="Previous chapter (←)" style="box-shadow: 0 2px 8px rgba(0,0,0,0.2)">↑</button>
+  <button class="btn btn-ghost" onclick="scrollToNextChapter()" title="Next chapter (→)" style="box-shadow: 0 2px 8px rgba(0,0,0,0.2)">↓</button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let _chapters = [];
+let _currentChapterIdx = 0;
+
+async function loadChapters() {
+  const { data } = await asmFetch("/reading/api/chapters", { method: "GET" });
+  if (!data.ok || !data.chapters.length) {
+    document.getElementById("readerContent").innerHTML = `
+      <div class="empty-state" style="padding: 4rem 1rem; text-align: center">
+        <div class="text-3xl mb-2">📖</div>
+        <div class="text-mute">No chapters to read yet.</div>
+        <a href="{{ url_for('chapters.new') }}" class="btn btn-primary mt-3">+ New Chapter</a>
+      </div>`;
+    return;
+  }
+  _chapters = data.chapters;
+  loadPrefs();
+  renderChapters();
+  // Try to resume scroll position
+  const savedIdx = parseInt(localStorage.getItem("asm:reading:chapterIdx") || "0", 10);
+  if (savedIdx > 0 && savedIdx < _chapters.length) {
+    setTimeout(() => jumpToChapter(_chapters[savedIdx].id), 200);
+  }
+  // Update total reading time estimate
+  const totalWords = _chapters.reduce((s, c) => s + (c.word_count || 0), 0);
+  const mins = Math.round(totalWords / 250);
+  document.getElementById("readingStats").textContent = `${_chapters.length} chapters · ~${mins} min read`;
+}
+
+function renderChapters() {
+  const hideTitles = document.getElementById("hideTitles").checked;
+  const hideMeta = document.getElementById("hideMeta").checked;
+  const html = _chapters.map((c, i) => `
+    <div class="reader-chapter" data-idx="${i}" data-id="${c.id}" style="margin-bottom: 4rem; scroll-margin-top: 120px">
+      ${!hideTitles ? `
+        <h2 style="font-size: 1.6em; font-weight: 700; margin: 2rem 0 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); color: var(--text)">
+          ${escapeHtml(c.title)}
+        </h2>
+      ` : '<div style="height: 2rem"></div>'}
+      ${!hideMeta ? `
+        <div class="text-xs text-mute" style="margin-bottom: 1.5rem">
+          Chapter ${i + 1} of ${_chapters.length} · ${c.word_count} words · ~${Math.round((c.word_count || 0) / 250)} min
+          ${c.tags && c.tags.length ? ' · ' + c.tags.map(t => '#' + t).join(' ') : ''}
+        </div>
+      ` : ''}
+      <div class="chapter-prose" style="white-space: pre-wrap; word-wrap: break-word">${escapeHtml(c.content || '(empty chapter)')}</div>
+    </div>
+  `).join('');
+  document.getElementById("readerContent").innerHTML = html;
+  attachChapterObserver();
+}
+
+function rerender() {
+  renderChapters();
+}
+
+// Track which chapter is currently in view
+function attachChapterObserver() {
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const idx = parseInt(entry.target.dataset.idx, 10);
+        if (!isNaN(idx)) {
+          _currentChapterIdx = idx;
+          localStorage.setItem("asm:reading:chapterIdx", String(idx));
+          updateProgressBar();
+          // Update chapter jump dropdown
+          const jump = document.getElementById("chapterJump");
+          if (jump) jump.value = _chapters[idx].id;
+        }
+      }
+    });
+  }, { rootMargin: "-100px 0px -60% 0px", threshold: 0 });
+  document.querySelectorAll(".reader-chapter").forEach(el => observer.observe(el));
+}
+
+function updateProgressBar() {
+  // Compute scroll progress across all chapters
+  const scrollTop = window.scrollY;
+  const docHeight = document.body.scrollHeight - window.innerHeight;
+  const pct = docHeight > 0 ? Math.min(100, (scrollTop / docHeight) * 100) : 0;
+  document.getElementById("progressBar").style.width = pct + "%";
+}
+
+window.addEventListener("scroll", updateProgressBar, { passive: true });
+
+function jumpToChapter(chId) {
+  const el = document.querySelector(`.reader-chapter[data-id="${chId}"]`);
+  if (el) {
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
+function scrollToPrevChapter() {
+  if (_currentChapterIdx > 0) {
+    jumpToChapter(_chapters[_currentChapterIdx - 1].id);
+  }
+}
+
+function scrollToNextChapter() {
+  if (_currentChapterIdx < _chapters.length - 1) {
+    jumpToChapter(_chapters[_currentChapterIdx + 1].id);
+  }
+}
+
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen();
+  } else {
+    document.exitFullscreen();
+  }
+}
+
+function toggleControls() {
+  const c = document.getElementById("readingControls");
+  c.style.display = c.style.display === "none" ? "flex" : "none";
+}
+
+// ---- Preferences (persisted to localStorage) ----
+function saveReadingPrefs() {
+  const prefs = {
+    fontFamily: document.getElementById("fontFamily").value,
+    fontSize: document.getElementById("fontSize").value,
+    lineHeight: document.getElementById("lineHeight").value,
+    maxWidth: document.getElementById("maxWidth").value,
+    readTheme: document.getElementById("readTheme").value,
+    hideTitles: document.getElementById("hideTitles").checked,
+    hideMeta: document.getElementById("hideMeta").checked,
+  };
+  localStorage.setItem("asm:reading:prefs", JSON.stringify(prefs));
+  applyPrefs(prefs);
+}
+
+function loadPrefs() {
+  const raw = localStorage.getItem("asm:reading:prefs");
+  if (!raw) return;
+  const p = JSON.parse(raw);
+  if (p.fontFamily) document.getElementById("fontFamily").value = p.fontFamily;
+  if (p.fontSize) document.getElementById("fontSize").value = p.fontSize;
+  if (p.lineHeight) document.getElementById("lineHeight").value = p.lineHeight;
+  if (p.maxWidth) document.getElementById("maxWidth").value = p.maxWidth;
+  if (p.readTheme) document.getElementById("readTheme").value = p.readTheme;
+  if (p.hideTitles != null) document.getElementById("hideTitles").checked = p.hideTitles;
+  if (p.hideMeta != null) document.getElementById("hideMeta").checked = p.hideMeta;
+  applyPrefs(p);
+}
+
+function applyPrefs(p) {
+  const reader = document.getElementById("readerContent");
+  if (p.fontFamily) reader.style.fontFamily = p.fontFamily;
+  if (p.fontSize) {
+    reader.style.fontSize = p.fontSize + "px";
+    document.getElementById("fontSizeLabel").textContent = p.fontSize + "px";
+  }
+  if (p.lineHeight) {
+    const lh = (parseInt(p.lineHeight, 10) / 100).toFixed(1);
+    reader.style.lineHeight = lh;
+    document.getElementById("lineHeightLabel").textContent = lh;
+  }
+  if (p.maxWidth) reader.style.maxWidth = p.maxWidth + "px";
+  applyTheme();
+}
+
+function applyTheme() {
+  const theme = document.getElementById("readTheme").value;
+  const reader = document.getElementById("readerContent");
+  const viewport = document.getElementById("readerViewport");
+  // Reset
+  reader.style.removeProperty("background");
+  reader.style.removeProperty("color");
+  viewport.style.removeProperty("background");
+  if (theme === "paper") {
+    viewport.style.background = "#ffffff";
+    reader.style.color = "#1a1a1a";
+  } else if (theme === "sepia") {
+    viewport.style.background = "#f4ecd8";
+    reader.style.color = "#3a2f1a";
+  } else if (theme === "dark") {
+    viewport.style.background = "#1a1a1a";
+    reader.style.color = "#e0e0e0";
+  } else if (theme === "night") {
+    viewport.style.background = "#000000";
+    reader.style.color = "#808080";
+  }
+}
+
+function updateFontSize() {
+  const v = document.getElementById("fontSize").value;
+  document.getElementById("readerContent").style.fontSize = v + "px";
+  document.getElementById("fontSizeLabel").textContent = v + "px";
+}
+
+function updateLineHeight() {
+  const v = parseInt(document.getElementById("lineHeight").value, 10) / 100;
+  document.getElementById("readerContent").style.lineHeight = v.toFixed(1);
+  document.getElementById("lineHeightLabel").textContent = v.toFixed(1);
+}
+
+function updateMaxWidth() {
+  const v = document.getElementById("maxWidth").value;
+  document.getElementById("readerContent").style.maxWidth = v + "px";
+}
+
+// ---- Keyboard nav ----
+document.addEventListener("keydown", (e) => {
+  // Don't intercept when typing in form fields
+  const tag = e.target.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+  if (e.key === "ArrowLeft" && !e.ctrlKey && !e.metaKey) {
+    e.preventDefault();
+    scrollToPrevChapter();
+  } else if (e.key === "ArrowRight" && !e.ctrlKey && !e.metaKey) {
+    e.preventDefault();
+    scrollToNextChapter();
+  } else if (e.key === "f" || e.key === "F") {
+    e.preventDefault();
+    toggleFullscreen();
+  } else if (e.key === "h" || e.key === "H") {
+    e.preventDefault();
+    toggleControls();
+  }
+});
+
+// Init
+loadChapters();
+</script>
+{% endblock %}

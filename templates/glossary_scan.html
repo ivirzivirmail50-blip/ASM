@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Glossary Scan Results{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<a href="{{ url_for('glossary.index') }}">Glossary</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Scan Results</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>🔍 Glossary Scan Results</h1>
+    <div class="subtitle">Scanned {{ result.chapters_scanned }} chapter{{ 's' if result.chapters_scanned != 1 else '' }} against your glossary.</div>
+  </div>
+  <div class="flex gap-2">
+    <a href="{{ url_for('glossary.index') }}" class="btn btn-ghost">← Back to Glossary</a>
+    <button class="btn btn-primary" onclick="rescan()">↻ Re-scan</button>
+  </div>
+</div>
+
+<!-- Summary -->
+<div class="card-grid cols-3 mb-6">
+  <div class="card">
+    <div class="card-subtitle">Chapters scanned</div>
+    <div style="font-size: 1.85rem; font-weight: 600">{{ result.chapters_scanned }}</div>
+  </div>
+  <div class="card">
+    <div class="card-subtitle">Issues found</div>
+    <div style="font-size: 1.85rem; font-weight: 600; color: {{ 'var(--danger)' if result.issues else 'var(--success)' }}">{{ result.issues | length }}</div>
+  </div>
+  <div class="card">
+    <div class="card-subtitle">Terms in use</div>
+    <div style="font-size: 1.85rem; font-weight: 600; color: var(--accent-hover)">{{ result.presence | length }}</div>
+  </div>
+</div>
+
+<!-- Issues -->
+<div class="card mb-6">
+  <div class="card-title mb-3">⚠ Issues</div>
+  {% if result.issues %}
+  <div class="flex flex-col gap-2">
+    {% for issue in result.issues %}
+    <div class="card" style="padding: 0.9rem; border-left: 3px solid {{ 'var(--danger)' if issue.type == 'forbidden' else 'var(--warning)' }}">
+      <div class="flex items-start gap-3">
+        <div class="flex-1">
+          <div class="flex items-center gap-2 flex-wrap">
+            {% if issue.type == 'forbidden' %}
+            <span class="badge" style="background: var(--danger); color: white">FORBIDDEN</span>
+            {% else %}
+            <span class="badge" style="background: var(--warning); color: white">NEAR-MISS (d={{ issue.distance }})</span>
+            {% endif %}
+            <span class="badge">{{ issue.chapter_title }}</span>
+            <span style="font-weight: 600">Found:</span>
+            <code style="background: var(--bg-elev-3); padding: 2px 8px; border-radius: 3px; color: var(--danger)">{{ issue.found }}</code>
+            <span class="text-mute">→ should be</span>
+            <code style="background: var(--bg-elev-3); padding: 2px 8px; border-radius: 3px; color: var(--success)">{{ issue.term }}</code>
+            <span class="text-mute text-xs">×{{ issue.count }}</span>
+          </div>
+          {% if issue.context %}
+          <div class="mt-2 text-sm" style="background: var(--bg-elev-2); padding: 0.5rem 0.75rem; border-radius: 4px; font-family: monospace; color: var(--text-dim)">
+            {{ issue.context }}
+          </div>
+          {% endif %}
+        </div>
+        <a href="{{ url_for('chapters.detail', chapter_id=issue.chapter_id) }}"
+           class="btn btn-sm">Open chapter →</a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state" style="padding: 2rem; text-align: center">
+    <div class="text-3xl mb-2">✓</div>
+    <div class="text-sm">
+      {% if result.chapters_scanned == 0 %}
+      No chapters to scan yet.
+      {% else %}
+      No issues found! Your manuscript is consistent with your glossary.
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Presence (terms actually being used) -->
+<div class="card">
+  <div class="card-title mb-3">📊 Term Usage</div>
+  {% if result.presence %}
+  <div class="table-wrap" style="overflow-x: auto">
+    <table class="table">
+      <thead>
+        <tr><th>Term</th><th>Category</th><th>Total occurrences</th><th>Chapters in</th></tr>
+      </thead>
+      <tbody>
+        {% for p in result.presence | sort(attribute='count', reverse=True) %}
+        <tr>
+          <td><strong>{{ p.icon }} {{ p.term }}</strong></td>
+          <td><span class="badge">{{ p.category }}</span></td>
+          <td>{{ p.count }}</td>
+          <td>{{ p.chapters_in }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="text-mute text-sm" style="padding: 1rem">No glossary terms appear in your chapters yet.</div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function rescan() {
+  showToast("Re-scanning…", "info", 1500);
+  setTimeout(() => location.reload(), 600);
+}
+</script>
+{% endblock %}

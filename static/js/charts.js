@@ -1,11 +1,12 @@
 /* Dashboard charts + heatmap + AI modals. */
 
-// ---- Daily ring chart ----
+// ---- Daily ring chart — reads from window globals (set by template) ----
 (function() {
-  const daily = {{ stats.words_today }};
-  const goal = {{ settings.get('daily_word_goal', 500) }};
+  const daily = window.ASM_DAILY_WORDS || 0;
+  const goal = window.ASM_DAILY_GOAL || 500;
   const pct = Math.min(daily / Math.max(goal, 1), 1);
   const ring = document.getElementById("dailyRing");
+  if (!ring) return;
   const circumference = 2 * Math.PI * 48;  // ~301.59
   ring.style.strokeDashoffset = circumference * (1 - pct);
   // Animate the number
@@ -14,7 +15,8 @@
   const interval = setInterval(() => {
     cur += step;
     if (cur >= daily) { cur = daily; clearInterval(interval); }
-    document.getElementById("dailyRingValue").textContent = cur;
+    const valEl = document.getElementById("dailyRingValue");
+    if (valEl) valEl.textContent = cur;
   }, 30);
 })();
 
@@ -22,32 +24,21 @@
 (function() {
   const ctx = document.getElementById("wordHistoryChart");
   if (!ctx) return;
-  const data = {{ stats.daily_history | tojson }};
+  const data = window.ASM_DAILY_HISTORY || [];
   const labels = data.map(d => d.date.slice(5));   // MM-DD
   const values = data.map(d => d.words);
+  const maxValue = Math.max(...values, 100);
   new Chart(ctx, {
-    type: "line",
+    type: "bar",
     data: {
       labels: labels,
       datasets: [{
         label: "Words",
         data: values,
+        backgroundColor: "rgba(99, 102, 241, 0.6)",
         borderColor: "#6366f1",
-        backgroundColor: (ctx) => {
-          const chart = ctx.chart;
-          const { ctx: c, chartArea } = chart;
-          if (!chartArea) return null;
-          const g = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-          g.addColorStop(0, "rgba(99, 102, 241, 0.4)");
-          g.addColorStop(1, "rgba(99, 102, 241, 0)");
-          return g;
-        },
-        fill: true,
-        tension: 0.35,
-        pointRadius: 0,
-        pointHoverRadius: 5,
-        pointHoverBackgroundColor: "#818cf8",
-        borderWidth: 2,
+        borderWidth: 1,
+        maxBarThickness: 20,
       }]
     },
     options: {
@@ -63,6 +54,7 @@
           grid: { color: "rgba(108, 115, 153, 0.15)" },
           ticks: { color: "#6b7299", font: { size: 10 } },
           beginAtZero: true,
+          max: Math.ceil(maxValue * 1.2),
         }
       }
     }
@@ -73,7 +65,7 @@
 (function() {
   const container = document.getElementById("annualHeatmap");
   if (!container) return;
-  const data = {{ stats.annual_heatmap | tojson }};
+  const data = window.ASM_ANNUAL_HEATMAP || [];
   container.innerHTML = "";
   data.forEach(d => {
     const cell = document.createElement("div");

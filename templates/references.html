@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+{% block title %}Research & References{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Research & References</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>📚 Research & References</h1>
+    <div class="subtitle">Track books, articles, websites, interviews — with quotes, tags, read status, and chapter links.</div>
+  </div>
+  <button class="btn btn-primary" onclick="openRefModal()">+ New Reference</button>
+</div>
+
+<!-- Stats -->
+<div class="card-grid cols-5 mb-6">
+  <div class="card text-center">
+    <div class="card-subtitle">Total</div>
+    <div style="font-size: 1.6rem; font-weight: 600">{{ stats.total }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Unread</div>
+    <div style="font-size: 1.6rem; font-weight: 600; color: var(--text-mute)">{{ stats.unread }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Reading</div>
+    <div style="font-size: 1.6rem; font-weight: 600; color: var(--warning)">{{ stats.reading }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Read</div>
+    <div style="font-size: 1.6rem; font-weight: 600; color: var(--success)">{{ stats.read }}</div>
+  </div>
+  <div class="card text-center">
+    <div class="card-subtitle">Avg rating</div>
+    <div style="font-size: 1.6rem; font-weight: 600; color: var(--accent-hover)">{{ stats.avg_rating or '—' }}</div>
+  </div>
+</div>
+
+<!-- Filters -->
+<form method="get" class="card mb-4" style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap">
+  <input type="text" name="q" value="{{ current_search }}" placeholder="Search…"
+         class="form-input" style="flex: 1; min-width: 200px">
+  <select name="source_type" class="form-select" style="width: auto">
+    <option value="all" {{ 'selected' if current_source_type == 'all' }}>All types</option>
+    {% for key, t in source_types.items() %}
+    <option value="{{ key }}" {{ 'selected' if current_source_type == key }}>{{ t.icon }} {{ t.label }}</option>
+    {% endfor %}
+  </select>
+  <select name="read_status" class="form-select" style="width: auto">
+    <option value="all" {{ 'selected' if current_read_status == 'all' }}>All statuses</option>
+    {% for key, s in read_statuses.items() %}
+    <option value="{{ key }}" {{ 'selected' if current_read_status == key }}>{{ s.icon }} {{ s.label }}</option>
+    {% endfor %}
+  </select>
+  <select name="priority" class="form-select" style="width: auto">
+    <option value="all" {{ 'selected' if current_priority == 'all' }}>All priorities</option>
+    {% for key, p in priorities.items() %}
+    <option value="{{ key }}" {{ 'selected' if current_priority == key }}>{{ p.icon }} {{ p.label }}</option>
+    {% endfor %}
+  </select>
+  {% if all_tags %}
+  <select name="tag" class="form-select" style="width: auto">
+    <option value="">All tags</option>
+    {% for t in all_tags %}
+    <option value="{{ t }}" {{ 'selected' if current_tag == t }}>#{{ t }}</option>
+    {% endfor %}
+  </select>
+  {% endif %}
+  <button class="btn btn-sm" type="submit">Filter</button>
+  <a href="{{ url_for('references.index') }}" class="btn btn-sm btn-ghost">Reset</a>
+</form>
+
+<!-- Reference cards -->
+{% if references %}
+<div class="card-grid cols-2" id="refsGrid">
+  {% for r in references %}
+  <div class="card" style="padding: 1rem; border-left: 3px solid {{ r.priority_color }}">
+    <div class="flex items-start gap-2 mb-2">
+      <span class="text-2xl">{{ r.source_icon }}</span>
+      <div class="flex-1">
+        <div style="font-weight: 600; line-height: 1.3">
+          {% if r.url %}<a href="{{ r.url }}" target="_blank" rel="noopener" style="color: var(--accent)">{{ r.title }}</a>{% else %}{{ r.title }}{% endif %}
+        </div>
+        {% if r.author %}<div class="text-xs text-mute">{{ r.author }}{% if r.publication_date %} · {{ r.publication_date }}{% endif %}</div>{% endif %}
+      </div>
+    </div>
+    {% if r.description %}
+    <p class="text-sm mb-2" style="line-height: 1.5">{{ r.description[:200] }}{% if r.description|length > 200 %}…{% endif %}</p>
+    {% endif %}
+    <div class="flex items-center gap-2 flex-wrap text-xs mb-2">
+      <span class="badge" style="background: {{ r.read_status_color }}22; color: {{ r.read_status_color }}">{{ r.read_status_icon }} {{ r.read_status_label }}</span>
+      <span class="badge" style="background: {{ r.priority_color }}22; color: {{ r.priority_color }}">{{ r.priority_icon }} {{ r.priority_label }}</span>
+      {% if r.rating %}<span class="badge">★ {{ r.rating }}/5</span>{% endif %}
+      {% if r.quotes %}<span class="badge">{{ r.quotes | length }} quote{{ 's' if r.quotes|length != 1 else '' }}</span>{% endif %}
+    </div>
+    {% if r.tags %}
+    <div class="flex gap-1 flex-wrap mb-2">
+      {% for t in r.tags %}<span class="badge">#{{ t }}</span>{% endfor %}
+    </div>
+    {% endif %}
+    {% if r.quotes %}
+    <details class="text-xs" style="margin-top: 0.5rem">
+      <summary class="cursor-pointer text-mute">Show quotes ({{ r.quotes | length }})</summary>
+      <div class="flex flex-col gap-1 mt-2">
+        {% for q in r.quotes %}
+        <div style="background: var(--bg-elev-2); padding: 0.5rem 0.75rem; border-radius: 4px; font-style: italic">
+          "{{ q.text }}"{% if q.page %} <span class="text-mute">— p. {{ q.page }}</span>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </details>
+    {% endif %}
+    <div class="flex gap-1 mt-3 pt-2" style="border-top: 1px solid var(--border)">
+      <button class="btn btn-sm" onclick="editRef({{ r | tojson }})">✎ Edit</button>
+      <button class="btn btn-sm btn-ghost text-danger" onclick="deleteRef('{{ r.id }}', {{ r.title | tojson }})">×</button>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card empty-state" style="padding: 3rem; text-align: center">
+  <div class="text-3xl mb-2">📚</div>
+  <div class="text-mute text-sm">
+    No references yet. Track books, articles, websites, interviews, and other sources for your story.
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SOURCE_TYPES = {
+  book:      "📚 Book",
+  article:   "📰 Article",
+  website:   "🌐 Website",
+  video:     "🎥 Video",
+  interview: "🎤 Interview",
+  podcast:   "🎧 Podcast",
+  document:  "📄 Document",
+  other:     "📝 Other",
+};
+const READ_STATUSES = {
+  unread:  "📭 Unread",
+  reading: "📖 Reading",
+  read:    "✓ Read",
+};
+const PRIORITIES = {
+  low:    "↓ Low",
+  medium: "= Medium",
+  high:   "↑ High",
+};
+
+function openRefModal(initial) {
+  initial = initial || {};
+  const quotes = (initial.quotes || []).map(q => q.text + (q.page ? ` [p.${q.page}]` : "")).join("\n");
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal modal-lg">
+      <div class="modal-header"><h3 class="modal-title">${initial.id ? 'Edit Reference' : 'New Reference'}</h3></div>
+      <div class="modal-body">
+        <div class="card-grid cols-2">
+          <div class="form-row">
+            <label class="form-label">Title <span class="text-danger">*</span></label>
+            <input type="text" id="r_title" class="form-input" value="${escapeHtml(initial.title || '')}" placeholder="Book/article title">
+          </div>
+          <div class="form-row">
+            <label class="form-label">Author(s)</label>
+            <input type="text" id="r_author" class="form-input" value="${escapeHtml(initial.author || '')}" placeholder="Author name">
+          </div>
+        </div>
+        <div class="card-grid cols-3">
+          <div class="form-row">
+            <label class="form-label">Source type</label>
+            <select id="r_type" class="form-select">
+              ${Object.entries(SOURCE_TYPES).map(([k, v]) => `<option value="${k}" ${initial.source_type === k ? 'selected' : ''}>${v}</option>`).join("")}
+            </select>
+          </div>
+          <div class="form-row">
+            <label class="form-label">Read status</label>
+            <select id="r_status" class="form-select">
+              ${Object.entries(READ_STATUSES).map(([k, v]) => `<option value="${k}" ${initial.read_status === k ? 'selected' : ''}>${v}</option>`).join("")}
+            </select>
+          </div>
+          <div class="form-row">
+            <label class="form-label">Priority</label>
+            <select id="r_priority" class="form-select">
+              ${Object.entries(PRIORITIES).map(([k, v]) => `<option value="${k}" ${initial.priority === k ? 'selected' : ''}>${v}</option>`).join("")}
+            </select>
+          </div>
+        </div>
+        <div class="card-grid cols-2">
+          <div class="form-row">
+            <label class="form-label">URL</label>
+            <input type="text" id="r_url" class="form-input" value="${escapeHtml(initial.url || '')}" placeholder="https://…">
+          </div>
+          <div class="form-row">
+            <label class="form-label">Publication date (freeform)</label>
+            <input type="text" id="r_pubdate" class="form-input" value="${escapeHtml(initial.publication_date || '')}" placeholder="2024 or June 2024">
+          </div>
+        </div>
+        <div class="card-grid cols-2">
+          <div class="form-row">
+            <label class="form-label">Publisher</label>
+            <input type="text" id="r_publisher" class="form-input" value="${escapeHtml(initial.publisher || '')}">
+          </div>
+          <div class="form-row">
+            <label class="form-label">ISBN / DOI</label>
+            <input type="text" id="r_isbn" class="form-input" value="${escapeHtml(initial.isbn_or_doi || '')}">
+          </div>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Description</label>
+          <textarea id="r_desc" class="form-textarea" rows="2" placeholder="Brief description of what this source is about…">${escapeHtml(initial.description || '')}</textarea>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Quotes / excerpts (one per line, optional page in [p.X])</label>
+          <textarea id="r_quotes" class="form-textarea" rows="4" placeholder='"The queen smiled coldly." [p.143]&#10;"And so it began." [p.150]'>${escapeHtml(quotes)}</textarea>
+        </div>
+        <div class="card-grid cols-2">
+          <div class="form-row">
+            <label class="form-label">Tags (comma-separated)</label>
+            <input type="text" id="r_tags" class="form-input" value="${escapeHtml((initial.tags || []).join(', '))}" placeholder="history, weapons, medieval">
+          </div>
+          <div class="form-row">
+            <label class="form-label">Rating (1-5, optional)</label>
+            <input type="number" id="r_rating" class="form-input" min="1" max="5" value="${initial.rating || ''}">
+          </div>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Notes</label>
+          <textarea id="r_notes" class="form-textarea" rows="2" placeholder="How does this source inform your story?">${escapeHtml(initial.notes || '')}</textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" data-act="cancel">Cancel</button>
+        <button class="btn btn-primary" data-act="ok">Save</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  backdrop.querySelector('[data-act="cancel"]').onclick = () => backdrop.remove();
+  backdrop.onclick = (e) => { if (e.target === backdrop) backdrop.remove(); };
+  backdrop.querySelector('[data-act="ok"]').onclick = async () => {
+    // Parse quotes: each line is "text [p.X]"
+    const quotesRaw = document.getElementById("r_quotes").value.split("\n").filter(Boolean);
+    const quotes = quotesRaw.map(line => {
+      const m = line.match(/^(.*?)\s*\[p\.(\d+)\]\s*$/);
+      if (m) return { text: m[1].trim(), page: m[2], notes: "" };
+      return { text: line.trim(), page: "", notes: "" };
+    });
+    const payload = {
+      title: document.getElementById("r_title").value.trim(),
+      author: document.getElementById("r_author").value,
+      url: document.getElementById("r_url").value,
+      source_type: document.getElementById("r_type").value,
+      read_status: document.getElementById("r_status").value,
+      priority: document.getElementById("r_priority").value,
+      publication_date: document.getElementById("r_pubdate").value,
+      publisher: document.getElementById("r_publisher").value,
+      isbn_or_doi: document.getElementById("r_isbn").value,
+      description: document.getElementById("r_desc").value,
+      quotes,
+      tags: document.getElementById("r_tags").value.split(",").map(s => s.trim()).filter(Boolean),
+      rating: document.getElementById("r_rating").value || null,
+      notes: document.getElementById("r_notes").value,
+    };
+    if (!payload.title) { showToast("Title required", "warning"); return; }
+    const url = initial.id ? `/references/api/${initial.id}` : "/references/api/new";
+    const { data } = await asmFetch(url, { method: "POST", body: payload });
+    backdrop.remove();
+    if (data.ok) { showToast("Saved!", "success"); setTimeout(() => location.reload(), 500); }
+    else { showToast(data.error || "Failed", "error"); }
+  };
+}
+
+function editRef(r) {
+  openRefModal(r);
+}
+
+async function deleteRef(id, title) {
+  const ok = await confirmDialog(`Delete reference "${title}"?`, { danger: true, okLabel: "Delete" });
+  if (!ok) return;
+  const { data } = await asmFetch(`/references/api/${id}/delete`, { method: "POST" });
+  if (data.ok) { showToast("Deleted", "success"); setTimeout(() => location.reload(), 500); }
+}
+</script>
+{% endblock %}

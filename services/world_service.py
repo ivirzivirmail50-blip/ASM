@@ -411,19 +411,63 @@ def restore_version(entry_id: str, version_id: str) -> WorldEntry:
 
 # ---- Map ----
 
-def get_map_entries() -> list[WorldEntry]:
-    """Return all location-type entries (with optional pin coords)."""
+def get_map_entries(parent_id: str | None = None) -> list[WorldEntry]:
+    """Return location-type entries. If parent_id is None, returns top-level locations.
+    If parent_id is given, returns children of that location."""
     with read_session() as s:
-        return list(s.scalars(
-            select(WorldEntry).where(
-                WorldEntry.project_id == current_project_id(s),
-                WorldEntry.type == "location",
-            ).order_by(WorldEntry.name.asc())
-        ).all())
+        q = select(WorldEntry).where(
+            WorldEntry.project_id == current_project_id(s),
+            WorldEntry.type == "location",
+        )
+        if parent_id is None:
+            # Top-level: no parent
+            q = q.where(WorldEntry.parent_id.is_(None))
+        else:
+            q = q.where(WorldEntry.parent_id == parent_id)
+        return list(s.scalars(q.order_by(WorldEntry.name.asc())))
+
+
+def get_map_breadcrumbs(entry_id: str | None) -> list[dict]:
+    """Build breadcrumb trail from root to the given entry."""
+    if not entry_id:
+        return []
+    breadcrumbs: list[dict] = []
+    with read_session() as s:
+        current = s.get(WorldEntry, entry_id)
+        while current:
+            breadcrumbs.insert(0, {
+                "id": current.id,
+                "name": current.name,
+            })
+            current = s.get(WorldEntry, current.parent_id) if current.parent_id else None
+    return breadcrumbs
+
+
+def get_map_image_for_entry(entry_id: str | None) -> str | None:
+    """Get the map image path for a specific entry (or the root map if None)."""
+    from config import Config
+    maps_dir = Config.MEDIA_DIR / "maps"
+    if not maps_dir.exists():
+        return None
+    search_key = entry_id if entry_id else "root"
+    # Look for map_{search_key}_*.* pattern (with timestamp)
+    images = sorted(maps_dir.glob(f"map_{search_key}_*.*"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if images:
+        return f"/media/maps/{images[0].name}"
+    # Fallback: also check old format map_{search_key}.* (without timestamp)
+    images = sorted(maps_dir.glob(f"map_{search_key}.*"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if images:
+        return f"/media/maps/{images[0].name}"
+    # If root and nothing found, try any map_* file (backward compat)
+    if not entry_id:
+        images = sorted(maps_dir.glob("map_*"), key=lambda p: p.stat().st_mtime, reverse=True)
+        if images:
+            return f"/media/maps/{images[0].name}"
+    return None
 
 
 def update_pin(entry_id: str, x: float | None, y: float | None,
-               label: str | None = None) -> None:
+               label: str | None = None, color: str | None = None) -> None:
     """Set or remove a map pin. Pass x=None, y=None to remove the pin."""
     with write_transaction() as s:
         e = s.get(WorldEntry, entry_id)
@@ -440,6 +484,8 @@ def update_pin(entry_id: str, x: float | None, y: float | None,
                 raise ValidationError("Invalid pin coordinates.")
         if label is not None:
             e.map_pin_label = label
+        if color is not None:
+            e.map_pin_color = color
 
 
 def get_hierarchy(parent_id: str | None = None) -> list[dict]:

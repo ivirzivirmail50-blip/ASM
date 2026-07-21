@@ -123,3 +123,53 @@ def install_fts(engine: Engine) -> bool:
     except Exception as exc:
         log.warning("FTS5 unavailable; search will fall back to LIKE. (%s)", exc)
         return False
+
+
+def rebuild_fts(engine: Engine) -> bool:
+    """Drop and recreate FTS5 tables + triggers, then re-index all data.
+
+    Use this when the FTS index is corrupted or out of sync.
+    Returns True on success.
+    """
+    from sqlalchemy import text
+    try:
+        with engine.begin() as conn:
+            # Drop existing FTS tables (IF EXISTS)
+            for table in ("chapters_fts", "characters_fts", "world_fts"):
+                try:
+                    conn.execute(text(f"DROP TABLE IF EXISTS {table};"))
+                except Exception:
+                    pass
+            # Drop existing triggers
+            for trigger in ("chapters_ai", "chapters_ad", "chapters_au",
+                            "characters_ai", "characters_ad", "characters_au",
+                            "world_ai", "world_ad", "world_au"):
+                try:
+                    conn.execute(text(f"DROP TRIGGER IF EXISTS {trigger};"))
+                except Exception:
+                    pass
+        # Recreate
+        if not install_fts(engine):
+            return False
+        # Re-index: insert all existing rows into FTS
+        with engine.begin() as conn:
+            # Chapters
+            conn.execute(text("""
+                INSERT INTO chapters_fts(rowid, title, synopsis, content)
+                SELECT rowid, title, synopsis, content FROM chapters;
+            """))
+            # Characters
+            conn.execute(text("""
+                INSERT INTO characters_fts(rowid, name, aliases, physical, psychology, background, philosophy, voice, notes)
+                SELECT rowid, name, aliases, physical, psychology, background, philosophy, voice, notes FROM characters;
+            """))
+            # World entries
+            conn.execute(text("""
+                INSERT INTO world_fts(rowid, name, description, content, notes)
+                SELECT rowid, name, description, content, notes FROM world_entries;
+            """))
+        log.info("FTS5 index rebuilt successfully.")
+        return True
+    except Exception as exc:
+        log.error("FTS5 rebuild failed: %s", exc)
+        return False

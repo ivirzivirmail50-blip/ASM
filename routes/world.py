@@ -206,24 +206,30 @@ def reorder():
 
 @bp.route("/map")
 def map_view():
-    entries = world_service.get_map_entries()
-    # Check if a map image is configured
-    from config import Config
-    map_image_path = None
-    maps_dir = Config.MEDIA_DIR / "maps"
-    if maps_dir.exists():
-        # Find the most recent map image
-        images = sorted(maps_dir.glob("map_*"), key=lambda p: p.stat().st_mtime, reverse=True)
-        if images:
-            map_image_path = f"/media/maps/{images[0].name}"
+    """World map view — supports nested sub-maps via parent_id."""
+    parent_id = request.args.get("parent") or None
+    entries = world_service.get_map_entries(parent_id=parent_id)
+    map_image_path = world_service.get_map_image_for_entry(parent_id)
+    breadcrumbs = world_service.get_map_breadcrumbs(parent_id)
+    # Get the parent entry for display name
+    parent_name = None
+    if parent_id:
+        try:
+            parent_entry = world_service.get_entry(parent_id)
+            parent_name = parent_entry.name
+        except Exception:
+            pass
     return render_template("world/map.html", entries=entries,
                            map_image_path=map_image_path,
+                           breadcrumbs=breadcrumbs,
+                           parent_id=parent_id,
+                           parent_name=parent_name,
                            active_nav="world_map")
 
 
 @bp.route("/map/upload", methods=["POST"])
 def map_upload():
-    """Upload a map background image."""
+    """Upload a map background image. Supports per-entry maps via parent param."""
     if "file" not in request.files:
         return jsonify({"ok": False, "error": "No file provided"}), 400
     f = request.files["file"]
@@ -246,10 +252,12 @@ def map_upload():
     maps_dir = Config.MEDIA_DIR / "maps"
     maps_dir.mkdir(parents=True, exist_ok=True)
     import time
-    safe_name = f"map_{int(time.time())}{ext}"
+    # Use parent_id in filename if provided, else "root"
+    parent_id = request.form.get("parent") or request.args.get("parent") or "root"
+    safe_name = f"map_{parent_id}_{int(time.time())}{ext}"
     target = maps_dir / safe_name
     target.write_bytes(content)
-    log.info("Map image uploaded: %s (%d KB)", safe_name, actual_size // 1024)
+    log.info("Map image uploaded: %s (%d KB) for parent=%s", safe_name, actual_size // 1024, parent_id)
     return jsonify({"ok": True, "path": f"/media/maps/{safe_name}"})
 
 
@@ -271,7 +279,7 @@ def map_save_pin():
         x = float(x_raw) if x_raw is not None else None
         y = float(y_raw) if y_raw is not None else None
         world_service.update_pin(
-            data.get("id"), x, y, data.get("label"),
+            data.get("id"), x, y, data.get("label"), data.get("color"),
         )
         return jsonify({"ok": True})
     except AsmError as exc:

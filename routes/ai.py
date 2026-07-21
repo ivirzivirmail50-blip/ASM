@@ -20,6 +20,67 @@ def _guard():
         abort(404)
 
 
+
+
+@bp.route("/auto-detect")
+def auto_detect():
+    """Auto-detect a running Ollama instance and return available models."""
+    try:
+        import requests as req
+        # Try localhost:11434
+        for host in ["http://localhost:11434", "http://127.0.0.1:11434"]:
+            try:
+                resp = req.get(f"{host}/api/tags", timeout=3)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    models = [m["name"] for m in data.get("models", [])]
+                    # Recommend models good for creative writing
+                    recommended = [m for m in models if any(k in m.lower() for k in 
+                        ["llama", "mistral", "qwen", "gemma", "phi", "command"])]
+                    return jsonify({
+                        "ok": True,
+                        "detected": True,
+                        "host": host,
+                        "models": models,
+                        "recommended": recommended[:5],
+                    })
+            except (req.RequestException, req.ConnectionError):
+                continue
+        return jsonify({"ok": True, "detected": False, "models": [], "recommended": []})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 500
+
+
+@bp.route("/models")
+def list_models():
+    """Fetch available models from the configured provider."""
+    _guard()
+    try:
+        cfg = ai_service._get_config(None)
+        import requests as req
+        if cfg["provider"] == "ollama":
+            # Ollama: GET /api/tags
+            url = cfg["api_base"].rstrip("/") + "/api/tags"
+            resp = req.get(url, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+            models = [m["name"] for m in data.get("models", [])]
+            return jsonify({"ok": True, "models": models})
+        else:
+            # OpenAI-compatible: GET /v1/models
+            url = cfg["api_base"].rstrip("/") + "/v1/models"
+            headers = {}
+            if cfg["api_key"]:
+                headers["Authorization"] = f"Bearer {cfg['api_key']}"
+            resp = req.get(url, headers=headers, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+            models = [m["id"] for m in data.get("data", [])]
+            return jsonify({"ok": True, "models": models})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 500
+
+
 @bp.route("/status")
 def status():
     if not ai_service.is_enabled():
@@ -262,7 +323,7 @@ def continue_stream():
                 temperature=0.8,
             ):
                 if chunk:
-                    yield f"data: {chunk}\n\n"
+                    yield f"data: {str(chunk).replace(chr(10), chr(32)).replace(chr(13), chr(32))}\n\n"
                 if is_final:
                     yield "data: [DONE]\n\n"
                     return

@@ -111,6 +111,7 @@
   </div>
   <div class="form-row">
     <label class="form-label">Content (Markdown)</label>
+    <script type="text/plain" id="initialContent">{{ chapter.content|e }}</script>
     <textarea name="content" id="editor">{{ chapter.content or '' }}</textarea>
   </div>
 </form>
@@ -246,6 +247,9 @@ document.addEventListener("DOMContentLoaded", () => {
     unorderedListStyle: "-",
   });
 
+  // Render scene splitter
+  setTimeout(renderSceneSplitter, 500);
+
   // Track changes
   let dirty = false;
   let saveTimer = null;
@@ -300,6 +304,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     // Diff preview (if enabled)
     if (_diffEnabled) _refreshDiffPreview();
+    renderSceneSplitter();
     markDirty();
   });
 

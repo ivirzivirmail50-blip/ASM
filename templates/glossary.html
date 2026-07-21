@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}Glossary & Style Sheet{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard.index') }}">Home</a>
+<span class="crumb-sep">/</span>
+<span class="crumb-current">Glossary & Style Sheet</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>📖 Glossary & Style Sheet</h1>
+    <div class="subtitle">Your writer's bible of canonical names, terms, and style rules. The scanner flags forbidden variants and near-miss spellings.</div>
+  </div>
+  <div class="flex gap-2">
+    <a href="{{ url_for('glossary.scan') }}" class="btn">🔍 Scan Manuscript</a>
+    <button class="btn btn-primary" onclick="openEntryModal()">+ New Entry</button>
+  </div>
+</div>
+
+<!-- Filter + summary -->
+<div class="flex items-center gap-3 mb-4 flex-wrap">
+  <span class="text-sm text-mute">Filter by category:</span>
+  <a href="{{ url_for('glossary.index') }}"
+     class="badge {{ '' if current_category == 'all' else 'badge-muted' }}">All</a>
+  {% for key, cat in categories.items() %}
+  <a href="{{ url_for('glossary.index', category=key) }}"
+     class="badge {{ '' if current_category == key else 'badge-muted' }}"
+     style="background: {{ cat.color }}22; color: {{ cat.color }}; border: 1px solid {{ cat.color }}44">
+     {{ cat.icon }} {{ cat.label }} ({{ entries | selectattr('category', 'equalto', key) | list | length }})
+  </a>
+  {% endfor %}
+</div>
+
+<!-- Entries grid -->
+{% if entries %}
+<div class="card-grid cols-2" id="entriesGrid">
+  {% for e in entries %}
+  <div class="card" style="padding: 1rem; border-left: 3px solid {{ e.color }}">
+    <div class="flex items-start gap-2 mb-2">
+      <span class="text-xl">{{ e.icon }}</span>
+      <div class="flex-1">
+        <div style="font-weight: 700; font-size: 1.05rem">{{ e.term }}</div>
+        <div class="text-xs text-mute">{{ e.category_label }}{% if e.case_sensitive %} · case-sensitive{% endif %}</div>
+      </div>
+    </div>
+    {% if e.definition %}
+    <p class="text-sm mb-2" style="line-height: 1.5">{{ e.definition }}</p>
+    {% endif %}
+    {% if e.alternates %}
+    <div class="text-xs mb-1">
+      <span class="text-mute">✓ Acceptable:</span>
+      {% for a in e.alternates %}<code style="background: var(--bg-elev-3); padding: 1px 6px; border-radius: 3px; margin-right: 4px">{{ a }}</code>{% endfor %}
+    </div>
+    {% endif %}
+    {% if e.forbidden %}
+    <div class="text-xs mb-1">
+      <span class="text-mute" style="color: var(--danger)">✗ Forbidden:</span>
+      {% for f in e.forbidden %}<code style="background: var(--danger); color: white; padding: 1px 6px; border-radius: 3px; margin-right: 4px">{{ f }}</code>{% endfor %}
+    </div>
+    {% endif %}
+    {% if e.notes %}
+    <div class="text-xs text-mute mt-2" style="font-style: italic">{{ e.notes }}</div>
+    {% endif %}
+    <div class="flex gap-1 mt-3 pt-2" style="border-top: 1px solid var(--border)">
+      <button class="btn btn-sm" onclick="editEntry({{ e | tojson }})">✎ Edit</button>
+      <button class="btn btn-sm btn-ghost text-danger" onclick="deleteEntry('{{ e.id }}', {{ e.term | tojson }})">×</button>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card empty-state" style="padding: 3rem; text-align: center">
+  <div class="text-3xl mb-2">📖</div>
+  <div class="text-mute text-sm mb-3">
+    Your glossary is empty. Add your character names, places, magic terms, and style rules.<br>
+    The scanner will then flag any forbidden variants and near-miss spellings across all chapters.
+  </div>
+  <div class="flex gap-2 justify-center">
+    <button class="btn btn-sm" onclick="seedDefaults()">Load starter entries</button>
+    <button class="btn btn-sm btn-primary" onclick="openEntryModal()">+ Add your first entry</button>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CATEGORIES = {
+  character: "👤 Character",
+  place: "📍 Place",
+  magic: "✨ Magic Term",
+  item: "🗡 Item",
+  style: "📏 Style Rule",
+  other: "📝 Other",
+};
+
+function openEntryModal(initial) {
+  initial = initial || {};
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal modal-lg">
+      <div class="modal-header"><h3 class="modal-title">${initial.id ? 'Edit Entry' : 'New Glossary Entry'}</h3></div>
+      <div class="modal-body">
+        <div class="form-row">
+          <label class="form-label">Canonical term <span class="text-danger">*</span></label>
+          <input type="text" id="g_term" class="form-input" value="${escapeHtml(initial.term || '')}" placeholder="e.g. Elara Morningstar">
+        </div>
+        <div class="form-row">
+          <label class="form-label">Category</label>
+          <select id="g_cat" class="form-select">
+            ${Object.entries(CATEGORIES).map(([k, v]) => `<option value="${k}" ${initial.category === k ? 'selected' : ''}>${v}</option>`).join("")}
+          </select>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Definition / why it matters</label>
+          <textarea id="g_def" class="form-textarea" rows="3" placeholder="What does this term mean? Why is it important to keep consistent?">${escapeHtml(initial.definition || '')}</textarea>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Acceptable alternates (one per line)</label>
+          <textarea id="g_alts" class="form-textarea" rows="3" placeholder="El&#10;Lara">${escapeHtml((initial.alternates || []).join('\n'))}</textarea>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Forbidden variants (one per line — these will be flagged)</label>
+          <textarea id="g_forb" class="form-textarea" rows="3" placeholder="Ellara&#10;Elara Morningstar">${escapeHtml((initial.forbidden || []).join('\n'))}</textarea>
+        </div>
+        <div class="form-row">
+          <label class="flex items-center gap-1 text-sm">
+            <input type="checkbox" id="g_cs" ${initial.case_sensitive ? 'checked' : ''}>
+            Case-sensitive matching
+          </label>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Notes (optional)</label>
+          <textarea id="g_notes" class="form-textarea" rows="2" placeholder="Any internal notes…">${escapeHtml(initial.notes || '')}</textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" data-act="cancel">Cancel</button>
+        <button class="btn btn-primary" data-act="ok">Save</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  backdrop.querySelector('[data-act="cancel"]').onclick = () => backdrop.remove();
+  backdrop.onclick = (e) => { if (e.target === backdrop) backdrop.remove(); };
+  backdrop.querySelector('[data-act="ok"]').onclick = async () => {
+    const payload = {
+      term: document.getElementById("g_term").value.trim(),
+      category: document.getElementById("g_cat").value,
+      definition: document.getElementById("g_def").value,
+      alternates: document.getElementById("g_alts").value.split("\n").map(s => s.trim()).filter(Boolean),
+      forbidden: document.getElementById("g_forb").value.split("\n").map(s => s.trim()).filter(Boolean),
+      case_sensitive: document.getElementById("g_cs").checked,
+      notes: document.getElementById("g_notes").value,
+    };
+    if (!payload.term) { showToast("Term required", "warning"); return; }
+    const url = initial.id ? `/glossary/api/${initial.id}` : "/glossary/api/new";
+    const { data } = await asmFetch(url, { method: "POST", body: payload });
+    backdrop.remove();
+    if (data.ok) { showToast("Saved!", "success"); setTimeout(() => location.reload(), 500); }
+    else { showToast(data.error || "Failed", "error"); }
+  };
+}
+
+function editEntry(entry) {
+  openEntryModal(entry);
+}
+
+async function deleteEntry(id, term) {
+  const ok = await confirmDialog(`Delete glossary entry "${term}"?`, { danger: true, okLabel: "Delete" });
+  if (!ok) return;
+  const { data } = await asmFetch(`/glossary/api/${id}/delete`, { method: "POST" });
+  if (data.ok) { showToast("Deleted", "success"); setTimeout(() => location.reload(), 500); }
+}
+
+async function seedDefaults() {
+  const { data } = await asmFetch("/glossary/api/seed", { method: "POST" });
+  if (data.ok) { showToast("Starter entries loaded!", "success"); setTimeout(() => location.reload(), 500); }
+}
+</script>
+{% endblock %}
